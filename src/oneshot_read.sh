@@ -1,2 +1,2 @@
 #!/bin/sh
-./src/IDTechSDK_Demo
+./IDTechSDK_Demo

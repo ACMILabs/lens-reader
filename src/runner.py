@@ -42,7 +42,7 @@ def datetimeNowTimeZoneIso8601():
 
 def read_command_script_to_file():
   temp_file = open("temp", 'w')
-  subprocess.call(['./src/oneshot_read.sh'], stdout=temp_file)
+  subprocess.call(['./oneshot_read.sh'], stdout=temp_file)
   with open("temp",'r') as file:
     output=file.read()
     p = re.compile("DFED44\w\w(\w{14,14})", re.MULTILINE)
@@ -54,7 +54,7 @@ def read_command_script_to_file():
 
 def read_command_process():
   """runs the command to get a read fromt the kioskIV demo command line program"""
-  demoProcess = subprocess.Popen(['./src/IDTechSDK_Demo'], shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  demoProcess = subprocess.Popen(['./IDTechSDK_Demo'], shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   
   print(demoProcess)
   output, error=demoProcess.communicate()
