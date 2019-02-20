@@ -41,7 +41,7 @@ def get_mac():
 # Get IP address
 def get_ip_address():
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-  s.connect((DNS_SERVER, DNS_PORT))
+  s.connect((DNS_SERVER, int(DNS_PORT)))
   tmp_ip_address = s.getsockname()[0]
   s.close()
   return tmp_ip_address
