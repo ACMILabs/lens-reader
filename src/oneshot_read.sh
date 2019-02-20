@@ -1,2 +1,2 @@
 #!/bin/sh
-sudo ./src/IDTechSDK_Demo
+./src/IDTechSDK_Demo
