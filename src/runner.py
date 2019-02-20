@@ -31,9 +31,11 @@ def get_mac():
 
 # Get IP address
 def get_ip_address():
-  # TOFIX:
-#   return (([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")] or [[(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ["no IP found"])[0]
-  return '172.16.80.133'
+  s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+  s.connect(("8.8.8.8", 53))
+  tmp_ip_address = s.getsockname()[0]
+  s.close()
+  return tmp_ip_address
 ip_address = get_ip_address()
 reader_name = 'nfc-' + ip_address.split('.')[-1]
 
