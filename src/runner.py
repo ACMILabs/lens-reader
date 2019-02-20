@@ -9,6 +9,7 @@ from blinkt import set_pixel, show, set_all
 import subprocess
 import requests
 from random import choice
+import os
 import pytz
 import socket
 import uuid
@@ -20,8 +21,16 @@ from datetime import datetime
 
 # function definitions
 
+# Constants
+TIMEZONE = os.getenv('TIMEZONE')
+DNS_SERVER = os.getenv('DNS_SERVER')
+DNS_PORT = os.getenv('DNS_PORT')
+DEVICE_NAME = os.getenv('DEVICE_NAME')
+XOS_URL = os.getenv('XOS_URL')
+READER_MODEL = os.getenv('READER_MODEL')
+
 # Set pytz timezone
-pytz_timezone = pytz.timezone('Australia/Melbourne')
+pytz_timezone = pytz.timezone(TIMEZONE)
 
 # Get mac address
 def get_mac():
@@ -32,12 +41,12 @@ def get_mac():
 # Get IP address
 def get_ip_address():
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-  s.connect(("8.8.8.8", 53))
+  s.connect((DNS_SERVER, DNS_PORT))
   tmp_ip_address = s.getsockname()[0]
   s.close()
   return tmp_ip_address
 ip_address = get_ip_address()
-reader_name = 'nfc-' + ip_address.split('.')[-1]
+reader_name = DEVICE_NAME or 'nfc-' + ip_address.split('.')[-1]
 
 def datetimeNowTimeZoneIso8601():
   return datetime.now(pytz_timezone).isoformat()
@@ -67,15 +76,8 @@ def read_command_process():
 
 def post_uid_to_museumos(data):
   """refer to docs.python-requests.org for implementation examples"""
-  #print("Simulating MuseumOS Post")
-  #return(choice([0,1]))
-  URL="https://museumos-prod.acmi.net.au/api/taps/"
-  #URL="https://museumos-stg.acmi.net.au/api/taps/"
-  #PARAMS={'q':data}
-  #PARAMS_NFC={'atr':'SECOND_STORY_TEST','uid':data}
-  #PARAMS_NFC_READER={'mac_address':'PROTOTYPE_MAC_ADDRESS','reader_ip':'PROTOTYPE_READER_IP'}
-  #PARAMS={'nfc_tag': PARAMS_NFC,'nfc_reader': PARAMS_NFC_READER,'tap_datetime':'CURRENT_TIMESTAMP'}
-  PARAMS={'nfc_tag': {'atr':'SECOND_STORY_TEST','uid':data.lower()},'nfc_reader': {'mac_address':get_mac(),'reader_ip':get_ip_address(), 'reader_name': reader_name, 'reader_model':'IDTech Kiosk IV'},'tap_datetime':datetimeNowTimeZoneIso8601()}
+  URL=XOS_URL
+  PARAMS={'nfc_tag': {'uid':data.lower()},'nfc_reader': {'mac_address':get_mac(),'reader_ip':get_ip_address(), 'reader_name': reader_name, 'reader_model':READER_MODEL},'tap_datetime':datetimeNowTimeZoneIso8601()}
   try:
     r=requests.post(url=URL,json=PARAMS)
     if r.status_code==201:
