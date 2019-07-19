@@ -29,6 +29,7 @@ DEVICE_NAME = os.getenv('DEVICE_NAME')
 XOS_URL = os.getenv('XOS_URL')
 READER_MODEL = os.getenv('READER_MODEL')
 AUTH_TOKEN = os.getenv('AUTH_TOKEN')
+LABEL = os.getenv('LABEL')
 
 # Set pytz timezone
 pytz_timezone = pytz.timezone(TIMEZONE)
@@ -77,11 +78,24 @@ def read_command_process():
 
 def post_uid_to_museumos(data):
   """refer to docs.python-requests.org for implementation examples"""
-  URL=XOS_URL
-  PARAMS={'nfc_tag': {'uid':data.lower()},'nfc_reader': {'mac_address':get_mac(),'reader_ip':get_ip_address(), 'reader_name': reader_name, 'reader_model':READER_MODEL},'tap_datetime':datetimeNowTimeZoneIso8601()}
-  HEADERS={'Authorization': 'Token ' + AUTH_TOKEN}
+  params={
+    'nfc_tag': {
+      'uid':data.lower()
+    },
+    'tap_datetime': datetimeNowTimeZoneIso8601(),
+    'label': LABEL,
+    'data': {
+      'nfc_reader': {
+        'mac_address': get_mac(),
+        'reader_ip': get_ip_address(),
+        'reader_name': reader_name,
+        'reader_model': READER_MODEL
+      }
+    }
+  }
+  headers={'Authorization': 'Token ' + AUTH_TOKEN}
   try:
-    r=requests.post(url=URL,json=PARAMS, headers=HEADERS)
+    r=requests.post(url=XOS_URL, json=params, headers=headers)
     if r.status_code==201:
       print(r.text)
       return(0)
