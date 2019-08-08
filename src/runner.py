@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-""" description of the module"""
+""" Kiosk IV tap reader running on a Raspberry Pi """
 
 #imports
 import time
@@ -11,6 +11,7 @@ import requests
 from random import choice
 import os
 import pytz
+import sentry_sdk
 import socket
 import uuid
 from datetime import datetime
@@ -30,6 +31,10 @@ XOS_URL = os.getenv('XOS_URL')
 READER_MODEL = os.getenv('READER_MODEL')
 AUTH_TOKEN = os.getenv('AUTH_TOKEN')
 LABEL = os.getenv('LABEL')
+SENTRY_ID = os.getenv('SENTRY_ID')
+
+# Setup Sentry
+sentry_sdk.init(SENTRY_ID)
 
 # Set pytz timezone
 pytz_timezone = pytz.timezone(TIMEZONE)
@@ -73,6 +78,7 @@ def read_command_process():
   output, error=demoProcess.communicate()
   if error:
     raise Exception("Error "+str(error))
+    sentry_sdk.capture_exception(error)
   print(output)
   pass
 
@@ -101,9 +107,11 @@ def post_uid_to_museumos(data):
       return(0)
     else:
       print(r.text)
+      sentry_sdk.capture_message(r.text)
       return(1)
   except requests.exceptions.ConnectionError as e:
     print("Failed to post to MuseumOS: ", str(e))
+    sentry_sdk.capture_exception(e)
     return(1)
 
 
@@ -120,6 +128,7 @@ def main():
       h = post_uid_to_museumos(data=uid)
       if h==1:
         print("error")
+        sentry_sdk.capture_message('Kiosk IV launch error')
         set_all(255,0,0)
         show()
         time.sleep(1)
