@@ -70,18 +70,6 @@ def read_command_script_to_file():
       print("UID: "+ m.group(1))
       return m.group(1)
 
-def read_command_process():
-  """runs the command to get a read fromt the kioskIV demo command line program"""
-  demoProcess = subprocess.Popen(['./IDTechSDK_Demo'], shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-  
-  print(demoProcess)
-  output, error=demoProcess.communicate()
-  if error:
-    raise Exception("Error "+str(error))
-    sentry_sdk.capture_exception(error)
-  print(output)
-  pass
-
 def post_uid_to_museumos(data):
   """refer to docs.python-requests.org for implementation examples"""
   params={
