@@ -2,7 +2,11 @@
 
 A Kiosk IV tap reader running on a Raspberry Pi deployed via Balena.
 
-# Compiling the C code
+The file `runner.py` runs the `idtech` C app in the background, and processes the output of the app. The app simply prints discovered NFC tag reads to `stdout`.
+
+The Python script processes the output and makes 'tap' calls to XOS, and controls the lights attached to the RPi.
+
+# Compiling the `idtech` C code
 
 The `c_project` folder contains the source code for a simple application that configures the IDTech Kiosk IV reader and prints discovered NFC tags to `stdout`.
 
@@ -14,3 +18,10 @@ The `c_project` folder contains the source code for a simple application that co
 4. Click the Build Button. This will compile the `idtech` executable.
 5. Ensure the `libIDTechSDK.dylib` file - or a symlink to it - is in the path or the same folder as the executable.
 6. In the command line, run `./idtech` and test with an NFC tag.
+
+## To compile on Raspberry Pi
+
+1. Install libusb with `apt-get install libusb-dev`
+2. run `make all` in either the `Debug` or the `Release` folder.
+3. Ensure the `libIDTechSDK.so` file - or a symlink to it - is in the path or the same folder as the executable.
+5. In the command line, run `./idtech` and test with an NFC tag.
