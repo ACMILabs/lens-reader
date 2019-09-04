@@ -60,10 +60,7 @@ int main(void) {
     printf("Initializing SDK...\n");
     r = device_init();
     if ( r != RETURN_CODE_DO_SUCCESS ) {
-        char strErr[200] = {0};
-        memset(strErr, 0, 200);
-        device_getErrorString(r, strErr);
-        printf(">>>>>>>>>>>>FAIL<<<<<<<<<<<<< \n   ----- Failed to Init! ErrorCode:0x%02x, Info: %s ----- \n", r, strErr);
+        printf(">>>>>>>>>>>>FAIL<<<<<<<<<<<<< \n   ----- Failed to Init! ErrorCode:0x%02x.\n", r);
 		return 0;
     }
 
@@ -95,9 +92,9 @@ int main(void) {
 		// output touch-offs
 		// (need to strip the first byte in Python)
 		// make tolerant to USB unplug or power drop
-		// compile for RPi
+		// check whether we will ever get a UID where the first byte is 0 (and we would accidentally discard)
 
-		if (rbbyte[0]) {
+		if (rbbyte[0] > 0) {
 			printf("ON: ");
 			int i;
 			for (i = 0; i < len; i++)
