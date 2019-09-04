@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include "IDTDef.h"
 #include "libIDT_KioskIII.h"
 
@@ -55,6 +56,15 @@ void print_serial_number() {
 	fflush(stdout);
 }
 
+void print_bytes(BYTE *bytes, int len) {
+	for (int i = 0; i < len; i++)
+	{
+		if (i > 0) printf(":");
+		printf("%02X", bytes[i]);
+	}
+
+}
+
 int main(void) {
 	int r = 0;
     printf("Initializing SDK...\n");
@@ -80,32 +90,41 @@ int main(void) {
     mssleep(500);
 
     device_enablePassThrough(1);
+
+    BYTE last_value[512];
+    int last_len = 0;
+    bool has_value = false;
+
     while (1) {
     	// code from idtech support
     	BYTE data[] = {0x1A, 0x00};
-    	BYTE rbbyte[512] = {0};
+    	BYTE value[512] = {0};
     	int len = 512;
-		device_SendDataCommandNEO(0x2C,0x02,data,2,rbbyte,&len);
+		device_SendDataCommandNEO(0x2C,0x02,data,2,value,&len);
 
-		// TODO
-		// only output when value changes
-		// output touch-offs
-		// (need to strip the first byte in Python)
-		// make tolerant to USB unplug or power drop
-		// check whether we will ever get a UID where the first byte is 0 (and we would accidentally discard)
-
-		if (rbbyte[0] > 0) {
-			printf("ON: ");
-			int i;
-			for (i = 0; i < len; i++)
-			{
-				if (i > 0) printf(":");
-				printf("%02X", rbbyte[i]);
-			}
-			printf("\n");
-		}
-
-//		mssleep(500);
+		if (value[0] > 0) {
+//			printf("read\n");
+			if (!has_value) {
+				printf("TAP_ON_: ");
+				print_bytes(value, len);
+				printf("\n");
+				has_value = true;
+				// copy the array
+				for (int i = 0; i < len; i++)
+				{
+					last_value[i] = value[i];
+				}
+				last_len = len;
+			};
+		} else {
+//			printf("no read\n");
+			if (has_value) {
+				printf("TAP_OFF: ");
+				print_bytes(last_value, last_len);
+				printf("\n");
+				has_value = false;
+			};
+		};
     }
 
 	device_close();

@@ -4,6 +4,7 @@
 
 import subprocess
 import sys
+from datetime import datetime
 
 
 def main():
@@ -17,9 +18,11 @@ def main():
   while True:
       line = popen.stdout.readline()
       if line:
-        print("Got: ", line)
+        print("%s: %s" % (
+          datetime.now().strftime("%Y-%m-%d %H:%M"), 
+          line.decode("utf-8")
+        ), end='')
 
 
 if __name__ == "__main__":
   main()
-
