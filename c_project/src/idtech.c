@@ -60,8 +60,11 @@ int main(void) {
     printf("Initializing SDK...\n");
     r = device_init();
     if ( r != RETURN_CODE_DO_SUCCESS ) {
-        printf("  Fail to init!\n");
-            return 0;
+        char strErr[200] = {0};
+        memset(strErr, 0, 200);
+        device_getErrorString(r, strErr);
+        printf(">>>>>>>>>>>>FAIL<<<<<<<<<<<<< \n   ----- Failed to Init! ErrorCode:0x%02x, Info: %s ----- \n", r, strErr);
+		return 0;
     }
 
     device_setCurrentDevice(IDT_DEVICE_KIOSK_III);
