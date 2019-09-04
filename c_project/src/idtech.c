@@ -91,10 +91,6 @@ int main(void) {
 
     device_enablePassThrough(1);
 
-    BYTE last_value[512];
-    int last_len = 0;
-    bool has_value = false;
-
     while (1) {
     	// code from idtech support
     	BYTE data[] = {0x1A, 0x00};
@@ -103,27 +99,9 @@ int main(void) {
 		device_SendDataCommandNEO(0x2C,0x02,data,2,value,&len);
 
 		if (value[0] > 0) {
-//			printf("read\n");
-			if (!has_value) {
-				printf("TAP_ON_: ");
-				print_bytes(value, len);
-				printf("\n");
-				has_value = true;
-				// copy the array
-				for (int i = 0; i < len; i++)
-				{
-					last_value[i] = value[i];
-				}
-				last_len = len;
-			};
-		} else {
-//			printf("no read\n");
-			if (has_value) {
-				printf("TAP_OFF: ");
-				print_bytes(last_value, last_len);
-				printf("\n");
-				has_value = false;
-			};
+			print_bytes(value, len);
+			printf("\n");
+			fflush(stdout);
 		};
     }
 
