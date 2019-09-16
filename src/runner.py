@@ -44,9 +44,9 @@ def log(*args):
 class TapManager:
   def __init__(self):
     # Tap init
-    last_id = None
-    last_id_time = time()
-    tap_off_timer = None
+    self.last_id = None
+    self.last_id_time = time()
+    self.tap_off_timer = None
 
     # LED init
     # Using a DotStar Digital LED Strip with 12 LEDs connected to hardware SPI
