@@ -32,20 +32,24 @@ def log(*args):
 
 
 class TapManager:
-  last_id = None
-  last_id_time = time()
-  tap_off_timer = None
+  def __init__(self):
+    # Tap init
+    last_id = None
+    last_id_time = time()
+    tap_off_timer = None
 
-  # Using a DotStar Digital LED Strip with 12 LEDs connected to hardware SPI
-  LEDS = dotstar.DotStar(board.SCK, board.MOSI, 12, brightness=0.1)
-  LEDS_COLOUR_DEFAULT = (254, 254, 254)  # White
-  LEDS_COLOUR_SUCCESS = (0, 254, 0)  # Green
-  LEDS_COLOUR_FAILED = (254, 0, 0)  # Red
-  LEDS_DEFAULT_BRIGHTNESS = 0.1
-  LEDS_MAX_BRIGHTNESS = 0.5
-  LEDS_FADE_BRIGHTNESS_STEP = 0.01
-  LEDS_FADE_TIME_BETWEEN_STEP = 0.005
-  LEDS_TIME_BETWEEN_FAILED_BLINKS = 0.3
+    # LED init
+    # Using a DotStar Digital LED Strip with 12 LEDs connected to hardware SPI
+    LEDS = dotstar.DotStar(board.SCK, board.MOSI, 12, brightness=0.1)
+    LEDS_COLOUR_DEFAULT = (254, 254, 254)  # White
+    LEDS_COLOUR_SUCCESS = (0, 254, 0)  # Green
+    LEDS_COLOUR_FAILED = (254, 0, 0)  # Red
+    LEDS_DEFAULT_BRIGHTNESS = 0.1
+    LEDS_MAX_BRIGHTNESS = 0.5
+    LEDS_FADE_BRIGHTNESS_STEP = 0.01
+    LEDS_FADE_TIME_BETWEEN_STEP = 0.005
+    LEDS_TIME_BETWEEN_FAILED_BLINKS = 0.3
+    self.leds_fill_default()
 
   def leds_fill_default(self):
     self.LEDS.fill((*self.LEDS_COLOUR_DEFAULT, self.LEDS_DEFAULT_BRIGHTNESS))
@@ -78,6 +82,7 @@ class TapManager:
 
   def tap_on(self):      
     log(" Tap On: ", self.last_id)
+    self.leds_success()
 
   def tap_off(self):
     log("Tap Off: ", self.last_id)
@@ -106,8 +111,8 @@ def main():
   """Launcher."""
   print("KioskIV Lens Reader")
 
-  cmd = ["./idtech_debug"]
-  shell = True
+  cmd = ["sudo", "./idtech_debug"]
+  shell = False
   count = 0
   popen = subprocess.Popen(cmd, shell=shell, stdout=subprocess.PIPE)
 
