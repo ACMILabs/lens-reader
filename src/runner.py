@@ -11,8 +11,18 @@ from threading import Timer
 import board
 import adafruit_dotstar as dotstar
 
+
 BYTE_STRING_RE = r'([0-9a-fA-F]{2}:?)+'
 TAP_OFF_TIMEOUT = 0.5 # seconds
+
+LEDS_COLOUR_DEFAULT = (254, 254, 254)  # White
+LEDS_COLOUR_SUCCESS = (0, 254, 0)  # Green
+LEDS_COLOUR_FAILED = (254, 0, 0)  # Red
+LEDS_DEFAULT_BRIGHTNESS = 0.1
+LEDS_MAX_BRIGHTNESS = 0.5
+LEDS_FADE_BRIGHTNESS_STEP = 0.01
+LEDS_FADE_TIME_BETWEEN_STEP = 0.005
+LEDS_TIME_BETWEEN_FAILED_BLINKS = 0.3
 
 
 def byte_string_to_lens_id(byte_string):
@@ -40,44 +50,36 @@ class TapManager:
 
     # LED init
     # Using a DotStar Digital LED Strip with 12 LEDs connected to hardware SPI
-    LEDS = dotstar.DotStar(board.SCK, board.MOSI, 12, brightness=0.1)
-    LEDS_COLOUR_DEFAULT = (254, 254, 254)  # White
-    LEDS_COLOUR_SUCCESS = (0, 254, 0)  # Green
-    LEDS_COLOUR_FAILED = (254, 0, 0)  # Red
-    LEDS_DEFAULT_BRIGHTNESS = 0.1
-    LEDS_MAX_BRIGHTNESS = 0.5
-    LEDS_FADE_BRIGHTNESS_STEP = 0.01
-    LEDS_FADE_TIME_BETWEEN_STEP = 0.005
-    LEDS_TIME_BETWEEN_FAILED_BLINKS = 0.3
+    self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, 12, brightness=0.1)
     self.leds_fill_default()
 
   def leds_fill_default(self):
-    self.LEDS.fill((*self.LEDS_COLOUR_DEFAULT, self.LEDS_DEFAULT_BRIGHTNESS))
+    self.LEDS.fill((*LEDS_COLOUR_DEFAULT, LEDS_DEFAULT_BRIGHTNESS))
 
   def leds_success(self):
-    current_brightness = self.LEDS_MAX_BRIGHTNESS
+    current_brightness = LEDS_MAX_BRIGHTNESS
     while current_brightness > 0.0:
-      current_brightness -= self.LEDS_FADE_BRIGHTNESS_STEP
-      self.LEDS.fill((*self.LEDS_SUCCESS_COLOUR, current_brightness))
-      time.sleep(self.LEDS_FADE_TIME_BETWEEN_STEP)
+      current_brightness -= LEDS_FADE_BRIGHTNESS_STEP
+      self.LEDS.fill((*LEDS_COLOUR_SUCCESS, current_brightness))
+      time.sleep(LEDS_FADE_TIME_BETWEEN_STEP)
     self.leds_fill_default()
 
   def leds_failed(self):
-    current_brightness = self.LEDS_MAX_BRIGHTNESS
+    current_brightness = LEDS_MAX_BRIGHTNESS
 
-    self.LEDS.fill((*self.LEDS_COLOUR_FAILED, current_brightness))
-    time.sleep(self.LEDS_TIME_BETWEEN_FAILED_BLINKS)
+    self.LEDS.fill((*LEDS_COLOUR_FAILED, current_brightness))
+    time.sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
 
-    self.LEDS.fill((*self.LEDS_COLOUR_FAILED, 0.0))
-    time.sleep(self.LEDS_TIME_BETWEEN_FAILED_BLINKS)
+    self.LEDS.fill((*LEDS_COLOUR_FAILED, 0.0))
+    time.sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
 
-    self.LEDS.fill((*self.LEDS_COLOUR_FAILED, current_brightness))
-    time.sleep(self.LEDS_TIME_BETWEEN_FAILED_BLINKS)
+    self.LEDS.fill((*LEDS_COLOUR_FAILED, current_brightness))
+    time.sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
 
     while current_brightness > 0.0:
-      current_brightness -= self.LEDS_FADE_BRIGHTNESS_STEP
-      self.LEDS.fill((*self.LEDS_COLOUR_FAILED, current_brightness))
-      time.sleep(self.LEDS_FADE_TIME_BETWEEN_STEP)
+      current_brightness -= LEDS_FADE_BRIGHTNESS_STEP
+      self.LEDS.fill((*LEDS_COLOUR_FAILED, current_brightness))
+      time.sleep(LEDS_FADE_TIME_BETWEEN_STEP)
     self.leds_fill_default()
 
   def tap_on(self):      
