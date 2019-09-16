@@ -5,7 +5,7 @@
 import subprocess
 import sys
 from datetime import datetime
-from time import time
+from time import time, sleep
 import re
 from threading import Timer
 import board
@@ -61,25 +61,25 @@ class TapManager:
     while current_brightness > 0.0:
       current_brightness -= LEDS_FADE_BRIGHTNESS_STEP
       self.LEDS.fill((*LEDS_COLOUR_SUCCESS, current_brightness))
-      time.sleep(LEDS_FADE_TIME_BETWEEN_STEP)
+      sleep(LEDS_FADE_TIME_BETWEEN_STEP)
     self.leds_fill_default()
 
   def leds_failed(self):
     current_brightness = LEDS_MAX_BRIGHTNESS
 
     self.LEDS.fill((*LEDS_COLOUR_FAILED, current_brightness))
-    time.sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
+    sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
 
     self.LEDS.fill((*LEDS_COLOUR_FAILED, 0.0))
-    time.sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
+    sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
 
     self.LEDS.fill((*LEDS_COLOUR_FAILED, current_brightness))
-    time.sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
+    sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
 
     while current_brightness > 0.0:
       current_brightness -= LEDS_FADE_BRIGHTNESS_STEP
       self.LEDS.fill((*LEDS_COLOUR_FAILED, current_brightness))
-      time.sleep(LEDS_FADE_TIME_BETWEEN_STEP)
+      sleep(LEDS_FADE_TIME_BETWEEN_STEP)
     self.leds_fill_default()
 
   def tap_on(self):      
