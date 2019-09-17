@@ -3,6 +3,5 @@ pytz
 sentry-sdk
 
 # Python libraries for Dotstar LEDs SK9822/APA102
-RPI.GPIO
 adafruit-blinka
 adafruit-circuitpython-dotstar
