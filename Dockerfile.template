@@ -12,7 +12,7 @@ COPY ./requirements/base.txt /code/base.txt
 RUN pip install -Ur /code/base.txt
 
 # Fix RPi.GPIO for non-Raspbian images https://github.com/adafruit/Adafruit_Blinka/issues/99#issuecomment-500067042
-RUN pip install --upgrade hg+http://hg.code.sf.net/p/raspberry-gpio-python/code#egg=RPi.GPIO
+#RUN pip install --upgrade hg+http://hg.code.sf.net/p/raspberry-gpio-python/code#egg=RPi.GPIO
 
 COPY . /code/
 WORKDIR /code/src/
