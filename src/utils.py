@@ -3,10 +3,12 @@ from datetime import datetime
 import uuid
 import os
 import pytz
+import platform
 
 DNS_SERVER = os.getenv('DNS_SERVER', '8.8.8.8')
 DNS_PORT = int(os.getenv('DNS_PORT', '80'))
 TIMEZONE = os.getenv('TIMEZONE', 'Australia/Victoria')
+IS_OSX = platform.system() == "Darwin"
 
 # Set pytz timezone
 TZ = pytz.timezone(TIMEZONE)

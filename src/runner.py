@@ -19,9 +19,10 @@ try:
 except NotImplementedError:
   board = None
 
-from utils import log, MAC_ADDRESS, IP_ADDRESS, TZ
+from utils import log, MAC_ADDRESS, IP_ADDRESS, TZ, IS_OSX
 
 # Constants defined in environment
+DEBUG = os.getenv('DEBUG', '').lower() == "true"
 XOS_URL = os.getenv('XOS_URL', 'http://localhost:8888')
 AUTH_TOKEN = os.getenv('AUTH_TOKEN', '')
 LABEL = os.getenv('LABEL')
@@ -44,26 +45,18 @@ LEDS_TIME_BETWEEN_FAILED_BLINKS = 0.3
 BYTE_STRING_RE = r'([0-9a-fA-F]{2}:?)+'
 
 
-RASPBERRY_PI = False
+if IS_OSX:
+  FOLDER = "../bin/mac/"
+else:
+  FOLDER = "../bin/arm_32/"
 
-if RASPBERRY_PI:
+if DEBUG:
   CMD = ["./idtech_debug"]
 else:
-  CMD = ["./idtech_debug"]
+  CMD = ["./idtech"]
 
 # Setup Sentry
 sentry_sdk.init(SENTRY_ID)
-
-
-def byte_string_to_lens_id(byte_string):
-  """
-  Convert 04:04:A5:2C:F2:2A:5E:80 to 04a52cf22a5e80 by:
-  - stripping ":" and whitespace
-  - removing first byte
-  - lowercasing
-  """
-  return "".join(byte_string.strip().split(":")[1:]).lower()
-
 
 
 class LedsManager:
@@ -174,10 +167,20 @@ class TapManager:
     self.tap_off_timer = Timer(TAP_OFF_TIMEOUT, self.tap_off)
     self.tap_off_timer.start()
 
-  def read_id(self, id):
+  def _byte_string_to_lens_id(self, byte_string):
+    """
+    Convert 04:04:A5:2C:F2:2A:5E:80 to 04a52cf22a5e80 by:
+    - stripping ":" and whitespace
+    - removing first byte
+    - lowercasing
+    """
+    return "".join(byte_string.strip().split(":")[1:]).lower()
+
+  def read_line(self, line):
     """
     This is called continuously while an NFC tag is present.
     """
+    id = self._byte_string_to_lens_id(line)
     if id != self.last_id:
       # send a tap-off message if needed
       if self.tap_off_timer and self.tap_off_timer.is_alive():
@@ -188,12 +191,22 @@ class TapManager:
     self._reset_tap_off_timer()
 
 
+def byte_string_to_lens_id(byte_string):
+  """
+  Convert 04:04:A5:2C:F2:2A:5E:80 to 04a52cf22a5e80 by:
+  - stripping ":" and whitespace
+  - removing first byte
+  - lowercasing
+  """
+  return "".join(byte_string.strip().split(":")[1:]).lower()
+
+
 def main():
   """Launcher."""
   print("KioskIV Lens Reader")
 
   shell = True
-  popen = subprocess.Popen(CMD, shell=shell, stdout=subprocess.PIPE)
+  popen = subprocess.Popen(CMD, cwd=FOLDER, shell=shell, stdout=subprocess.PIPE)
 
   tap_manager = TapManager()
     
@@ -203,9 +216,8 @@ def main():
 
     # see if it is a tag read
     if re.match(BYTE_STRING_RE, line):
-      # We have an ID. Note the time and ID
-      id = byte_string_to_lens_id(line)
-      tap_manager.read_id(id)
+      # We have an ID.
+      tap_manager.read_line(line)
 
 
 if __name__ == "__main__":
