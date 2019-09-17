@@ -4,7 +4,7 @@ FROM balenalib/%%BALENA_MACHINE_NAME%%-python:3.7.4-buster-run
 
 # use `install_packages` if you need to install dependencies,
 # for instance if you need git, just uncomment the line below.
-RUN install_packages g++
+RUN install_packages g++ git
 
 ENV PYTHONUNBUFFERED 1
 
@@ -18,5 +18,4 @@ WORKDIR /code/src/
 ENV UDEV=1
 
 # main.py will run when container starts up on the device
-#CMD ["python","runner.py"]
-CMD ["bash"]
+CMD ["python","runner.py"]

@@ -30,7 +30,7 @@ LEDS_TIME_BETWEEN_FAILED_BLINKS = 0.3
 RASPBERRY_PI = False
 
 if RASPBERRY_PI:
-  CMD = ["sudo", "./idtech_debug"]
+  CMD = ["./idtech_debug"]
 else:
   CMD = ["./idtech_debug"]
 
@@ -133,7 +133,7 @@ def main():
   """Launcher."""
   print("KioskIV Lens Reader")
 
-  shell = False
+  shell = True
   count = 0
   popen = subprocess.Popen(CMD, shell=shell, stdout=subprocess.PIPE)
 
