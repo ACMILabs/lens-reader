@@ -12,6 +12,16 @@ COPY ./requirements/base.txt /code/base.txt
 RUN pip install -Ur /code/base.txt
 
 COPY . /code/
+
+# Compile idtech
+WORKDIR /code/c_project/Debug/
+RUN make clean
+RUN make all
+
+WORKDIR /code/c_project/Release/
+RUN make clean
+RUN make all
+
 WORKDIR /code/src/
 
 # Enable udevd so that plugged dynamic hardware devices show up in our container.
