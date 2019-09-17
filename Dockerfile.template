@@ -11,6 +11,9 @@ ENV PYTHONUNBUFFERED 1
 COPY ./requirements/base.txt /code/base.txt
 RUN pip install -Ur /code/base.txt
 
+# Fix RPi.GPIO for non-Raspbian images
+RUN pip install --upgrade hg+http://hg.code.sf.net/p/raspberry-gpio-python/code#egg=RPi.GPIO
+
 COPY . /code/
 WORKDIR /code/src/
 
