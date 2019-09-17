@@ -113,8 +113,8 @@ def main():
   """Launcher."""
   print("KioskIV Lens Reader")
 
-  cmd = ["sudo", "./idtech_debug"]
-  shell = False
+  cmd = ["./idtech_debug"]
+  shell = True
   count = 0
   popen = subprocess.Popen(cmd, shell=shell, stdout=subprocess.PIPE)
 
