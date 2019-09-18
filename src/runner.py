@@ -37,10 +37,12 @@ DEVICE_NAME = os.getenv('DEVICE_NAME')
 READER_MODEL = os.getenv('READER_MODEL')
 READER_NAME = DEVICE_NAME or 'nfc-' + IP_ADDRESS.split('.')[-1]
 
-LEDS_COLOUR_DEFAULT = envtotuple('LEDS_COLOR_DEFAULT', "130,127,127")  # White
-LEDS_COLOUR_SUCCESS = envtotuple('LEDS_COLOUR_SUCCESS', "0,255,0")  # Green
-LEDS_COLOUR_FAILED = envtotuple('LEDS_COLOUR_FAILED', "255,0,0")  # Red
-LEDS_DEFAULT_BRIGHTNESS = float(os.getenv('LEDS_DEFAULT_BRIGHTNESS', '1.0'))
+LEDS_BRIGHTNESS = float(os.getenv('LEDS_BRIGHTNESS', '1.0'))
+LEDS_DEFAULT_COLOR = envtotuple('LEDS_DEFAULT_COLOR', "130,127,127")  # White
+LEDS_SUCCESS_COLOUR = envtotuple('LEDS_SUCCESS_COLOUR', "0,255,0")  # Green
+LEDS_FAILED_COLOUR = envtotuple('LEDS_FAILED_COLOUR', "255,0,0")  # Red
+LEDS_RAMP_UP_TIME = float(os.getenv('LEDS_SUCCESS_RAMP_UP_TIME', "0.3"))
+LEDS_RAMP_DOWN_TIME = float(os.getenv('LEDS_SUCCESS_RAMP_UP_TIME', "0.6"))
 
 if IS_OSX:
   FOLDER = "../bin/mac/"
@@ -56,7 +58,6 @@ else:
 sentry_sdk.init(SENTRY_ID)
 
 
-
 class RampThread(Thread):
   """Thread class with a stop() method. The thread itself has to check
   regularly for the stopped() condition."""
@@ -67,7 +68,6 @@ class RampThread(Thread):
     # t: current time, b: beginning value, c: change in value, d: duration
     t = t / d
     r = c * t * t * t + b
-    # import pdb; pdb.set_trace()
     return r
 
   def __init__(self, current_color, target_color, duration_s):
@@ -78,14 +78,13 @@ class RampThread(Thread):
     self.duration_s = duration_s
 
     if board and dotstar:
-      self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, 12, brightness=LEDS_DEFAULT_BRIGHTNESS)
+      self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, 12, brightness=LEDS_BRIGHTNESS)
     else:
       self.LEDS = None
 
-
   def set_leds(self, color):
     if self.LEDS:
-      self.LEDS.fill((*color, LEDS_DEFAULT_BRIGHTNESS))
+      self.LEDS.fill((*color, LEDS_BRIGHTNESS))
     else:
       print("Setting LEDs to %s" % list(color))
 
@@ -131,7 +130,7 @@ class LedsManager:
   def __init__(self):
     # LED init
     # Using a DotStar Digital LED Strip with 12 LEDs connected to hardware SPI
-    self.fill_default()
+    self.default_mode()
 
   def ramp(self, target_color, duration_s):
     # in a thread, ramp from the current colour to the target_color colour, in 'duration' seconds
@@ -142,19 +141,19 @@ class LedsManager:
     self.thread = RampThread(self.current_color, target_color, duration_s)
     self.thread.start()
 
-  def fill_default(self):
-    self.ramp(LEDS_COLOUR_DEFAULT, 1.0)
+  def default_mode(self):
+    self.ramp(LEDS_DEFAULT_COLOR, LEDS_RAMP_UP_TIME)
 
   def success_on(self):
-    self.ramp(LEDS_COLOUR_SUCCESS, 0.6)
+    self.ramp(LEDS_SUCCESS_COLOUR, LEDS_RAMP_UP_TIME)
 
   def success_off(self):
-    self.ramp(LEDS_COLOUR_DEFAULT, 0.6)
+    self.ramp(LEDS_DEFAULT_COLOR, LEDS_RAMP_DOWN_TIME)
 
   def failed(self):
-    self.ramp(LEDS_COLOUR_FAILED, 0.6)
-    sleep(1.0)
-    self.ramp(LEDS_COLOUR_DEFAULT, 0.6)
+    self.ramp(LEDS_FAILED_COLOUR, LEDS_RAMP_UP_TIME)
+    sleep(0.5)
+    self.ramp(LEDS_DEFAULT_COLOR, LEDS_RAMP_DOWN_TIME)
 
 
 class TapManager:
