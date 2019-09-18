@@ -36,3 +36,13 @@ def get_ip_address():
   return tmp_ip_address
 
 IP_ADDRESS = get_ip_address()
+
+def envtotuple(env_name, default=()):
+  """
+  allow environment values of "1,2,3" to be parsed into (1,2,3)
+  """
+  v = os.getenv(env_name)
+  if v is None:
+    v = default
+  return tuple([int(x.strip()) for x in v.split(",")])
+

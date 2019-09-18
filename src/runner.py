@@ -10,16 +10,20 @@ from datetime import datetime
 from threading import Timer
 from time import sleep, time
 
-import adafruit_dotstar as dotstar
 import requests
 import sentry_sdk
+from utils import IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ, envtotuple, log
+
+try:
+  import adafruit_dotstar as dotstar
+except ModuleNotFoundError: # this doesn't compile install
+  dotstar = None
 
 try:
   import board
-except NotImplementedError:
+except (NotImplementedError, ModuleNotFoundError):
   board = None
 
-from utils import log, MAC_ADDRESS, IP_ADDRESS, TZ, IS_OSX
 
 # Constants defined in environment
 DEBUG = os.getenv('DEBUG', '').lower() == "true"
@@ -32,18 +36,16 @@ DEVICE_NAME = os.getenv('DEVICE_NAME')
 READER_MODEL = os.getenv('READER_MODEL')
 READER_NAME = DEVICE_NAME or 'nfc-' + IP_ADDRESS.split('.')[-1]
 
-
-LEDS_COLOUR_DEFAULT = (254, 254, 254)  # White
-LEDS_COLOUR_SUCCESS = (0, 254, 0)  # Green
-LEDS_COLOUR_FAILED = (254, 0, 0)  # Red
-LEDS_DEFAULT_BRIGHTNESS = 0.1
-LEDS_MAX_BRIGHTNESS = 0.5
-LEDS_FADE_BRIGHTNESS_STEP = 0.01
-LEDS_FADE_TIME_BETWEEN_STEP = 0.005
-LEDS_TIME_BETWEEN_FAILED_BLINKS = 0.3
+LEDS_COLOUR_DEFAULT = envtotuple('LEDS_COLOR_DEFAULT', "254,254,254")  # White
+LEDS_COLOUR_SUCCESS = envtotuple('LEDS_COLOUR_SUCCESS', "0,254,0")  # Green
+LEDS_COLOUR_FAILED = envtotuple('LEDS_COLOUR_FAILED', "254,0,0")  # Red
+LEDS_DEFAULT_BRIGHTNESS = float(os.getenv('LEDS_DEFAULT_BRIGHTNESS', '0.1'))
+LEDS_MAX_BRIGHTNESS = float(os.getenv('', '0.5'))
+LEDS_FADE_BRIGHTNESS_STEP = float(os.getenv('', '0.01'))
+LEDS_FADE_TIME_BETWEEN_STEP = float(os.getenv('', '0.005'))
+LEDS_TIME_BETWEEN_FAILED_BLINKS = float(os.getenv('', '0.3'))
 
 BYTE_STRING_RE = r'([0-9a-fA-F]{2}:?)+'
-
 
 if IS_OSX:
   FOLDER = "../bin/mac/"
@@ -66,7 +68,7 @@ class LedsManager:
   def __init__(self):
     # LED init
     # Using a DotStar Digital LED Strip with 12 LEDs connected to hardware SPI
-    if board:
+    if board and dotstar:
       self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, 12, brightness=0.1)
       self.fill_default()
     else:
