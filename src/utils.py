@@ -42,7 +42,7 @@ def envtotuple(env_name, default=()):
   allow environment values of "1,2,3" to be parsed into (1,2,3)
   """
   v = os.getenv(env_name)
-  if v is None:
+  if not v:
     v = default
   return tuple([int(x.strip()) for x in v.split(",")])
 
