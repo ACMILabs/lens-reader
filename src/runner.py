@@ -59,7 +59,7 @@ sentry_sdk.init(SENTRY_ID)
 
 
 class RampThread(Thread):
-  """Thread class with a stop() method. The thread itself has to check
+  """Thread class with a stop() method. Theramp_ thread itself has to check
   regularly for the stopped() condition."""
 
   @staticmethod
@@ -106,10 +106,10 @@ class RampThread(Thread):
     while True:
       t = time() - t0
       if self.stopped():
-        print("LED thread cancelled")
+        print("LEDramp_ thread cancelled")
         break
       if t >= self.duration_s:
-        # lock to exact target and end the thread
+        # lock to exact target and end theramp_ thread
         self.set_leds(self.target_color)
         break
 
@@ -119,12 +119,42 @@ class RampThread(Thread):
       self.set_leds(self.current_color)
       sleep(1.0/60)
 
+
+class CycleThread(Thread):
+  """Thread class with a stop() method that cycles to and fro between colours"""
+
+  ramp_thread = None
+
+  def __init__(self, color_1, color_2, duration_s):
+    super(CycleThread, self).__init__()
+    self._stop_event = Event()
+    self.color_1 = color_1
+    self.color_2 = color_2
+    self.duration_s = duration_s
+
+  def stop(self):
+    self._stop_event.set()
+
+  def stopped(self):
+    return self._stop_event.is_set()
+
+  def run(self):
+    # BLARGH THIS NEEDS PROPER THINKNIG ABOUT
+    print("Cycling between %s and %s" % (self.color_1, self.color_2))
+    while True:
+      self.ramp_thread = RampThread(colour_1, colour_2, duration_s)
+      sleep(duration_s)
+      self.ramp_thread = RampThread(colour_2, colour_1, duration_s)
+      sleep(duration_s)
+
+
 class LedsManager:
   """
   LedsManager manages the state of the reader's LEDs.
   """
 
-  thread = None
+  ramp_thread = None
+  cycle_thread = None
   current_color = [0,0,0]
 
   def __init__(self):
@@ -132,17 +162,26 @@ class LedsManager:
     # Using a DotStar Digital LED Strip with 12 LEDs connected to hardware SPI
     self.default_mode()
 
+  def stop_ramp(self):
+    if self.ramp_thread:
+      self.current_color = self.ramp_thread.current_color
+      self.ramp_thread.stop()
+      self.ramp_thread.join()
+
+  def cycle(self, colour_1, colour_2, duration_s):
+    self.stop_ramp()
+    def _c():
+      while True:
+      self.cycle_thread = Thread(target=_c)
+
   def ramp(self, target_color, duration_s):
-    # in a thread, ramp from the current colour to the target_color colour, in 'duration' seconds
-    if self.thread:
-      self.current_color = self.thread.current_color
-      self.thread.stop()
-      self.thread.join()
-    self.thread = RampThread(self.current_color, target_color, duration_s)
-    self.thread.start()
+    # in aramp_ thread, ramp from the current colour to the target_color colour, in 'duration' seconds
+    self.stop_ramp()
+    self.ramp_thread = RampThread(self.current_color, target_color, duration_s)
+    self.ramp_thread.start()
 
   def default_mode(self):
-    self.ramp(LEDS_DEFAULT_COLOR, LEDS_RAMP_UP_TIME)
+    def cycle((1,1,1), LEDS_DEFAULT_COLOR, 5.0)
 
   def success_on(self):
     self.ramp(LEDS_SUCCESS_COLOUR, LEDS_RAMP_UP_TIME)
