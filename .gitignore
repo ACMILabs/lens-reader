@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 
 # C extensions
-#*.so
+*.o
 
 # Distribution / packaging
 .Python
@@ -14,7 +14,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -96,6 +95,9 @@ venv.bak/
 
 # Rope project settings
 .ropeproject
+
+# VS Code setting
+.vscode
 
 # mkdocs documentation
 /site
