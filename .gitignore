@@ -99,6 +99,11 @@ venv.bak/
 # VS Code setting
 .vscode
 
+# Eclipse project
+c_project/.project
+c_project/.cproject
+c_project/.settings
+
 # mkdocs documentation
 /site
 
