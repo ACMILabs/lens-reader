@@ -1,10 +1,19 @@
 # base-image for python on any machine using a template variable,
 # see more about dockerfile templates here: https://www.balena.io/docs/learn/develop/dockerfile/
-FROM balenalib/%%BALENA_MACHINE_NAME%%-python:3.7.4-buster-run
+
+# The following results in a 64-bit image, which causes or contributes to compilation problems with the idtech library.
+# FROM balenalib/%%BALENA_MACHINE_NAME%%-python:3.7.4-buster-run
+# - which becomes
+# FROM balenalib/raspberrypi4-64-python:3.7.4-buster-run
+
+# So instead we're forcing a 32-bit image.
+FROM balenalib/raspberrypi3-python:3.7.4-buster-run
 
 # use `install_packages` if you need to install dependencies,
 # for instance if you need git, just uncomment the line below.
-RUN install_packages g++ git
+COPY ./c_project/lib/libIDTechSDK.so /usr/local/lib/
+RUN install_packages g++ git curl libusb-1.0-0-dev
+RUN ldconfig
 
 ENV PYTHONUNBUFFERED 1
 
