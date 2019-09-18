@@ -31,9 +31,9 @@ MAC_ADDRESS = get_mac_address()
 def get_ip_address():
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   s.connect((DNS_SERVER, DNS_PORT))
-  tmp_ip_address = s.getsockname()[0]
+  ip_address = s.getsockname()[0]
   s.close()
-  return tmp_ip_address
+  return ip_address
 
 IP_ADDRESS = get_ip_address()
 

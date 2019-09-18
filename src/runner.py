@@ -7,8 +7,9 @@ import re
 import subprocess
 import sys
 from datetime import datetime
-from threading import Timer, Thread
+from threading import Timer, Thread, Event
 from time import sleep, time
+from copy import deepcopy
 
 import requests
 import sentry_sdk
@@ -36,16 +37,10 @@ DEVICE_NAME = os.getenv('DEVICE_NAME')
 READER_MODEL = os.getenv('READER_MODEL')
 READER_NAME = DEVICE_NAME or 'nfc-' + IP_ADDRESS.split('.')[-1]
 
-LEDS_COLOUR_DEFAULT = envtotuple('LEDS_COLOR_DEFAULT', "254,254,254")  # White
-LEDS_COLOUR_SUCCESS = envtotuple('LEDS_COLOUR_SUCCESS', "0,254,0")  # Green
-LEDS_COLOUR_FAILED = envtotuple('LEDS_COLOUR_FAILED', "254,0,0")  # Red
-LEDS_DEFAULT_BRIGHTNESS = float(os.getenv('LEDS_DEFAULT_BRIGHTNESS', '0.1'))
-LEDS_MAX_BRIGHTNESS = float(os.getenv('LEDS_MAX_BRIGHTNESS', '0.5'))
-LEDS_FADE_BRIGHTNESS_STEP = float(os.getenv('LEDS_FADE_BRIGHTNESS_STEP', '0.01'))
-LEDS_FADE_TIME_BETWEEN_STEP = float(os.getenv('LEDS_FADE_TIME_BETWEEN_STEP', '0.005'))
-LEDS_TIME_BETWEEN_FAILED_BLINKS = float(os.getenv('LEDS_TIME_BETWEEN_FAILED_BLINKS', '0.3'))
-
-BYTE_STRING_RE = r'([0-9a-fA-F]{2}:?)+'
+LEDS_COLOUR_DEFAULT = envtotuple('LEDS_COLOR_DEFAULT', "130,127,127")  # White
+LEDS_COLOUR_SUCCESS = envtotuple('LEDS_COLOUR_SUCCESS', "0,255,0")  # Green
+LEDS_COLOUR_FAILED = envtotuple('LEDS_COLOUR_FAILED', "255,0,0")  # Red
+LEDS_DEFAULT_BRIGHTNESS = float(os.getenv('LEDS_DEFAULT_BRIGHTNESS', '1.0'))
 
 if IS_OSX:
   FOLDER = "../bin/mac/"
@@ -61,55 +56,105 @@ else:
 sentry_sdk.init(SENTRY_ID)
 
 
+
+class RampThread(Thread):
+  """Thread class with a stop() method. The thread itself has to check
+  regularly for the stopped() condition."""
+
+  @staticmethod
+  def ease(t, b, c, d):
+    # Penner's easeInCubic
+    # t: current time, b: beginning value, c: change in value, d: duration
+    t = t / d
+    r = c * t * t * t + b
+    # import pdb; pdb.set_trace()
+    return r
+
+  def __init__(self, current_color, target_color, duration_s):
+    super(RampThread, self).__init__()
+    self._stop_event = Event()
+    self.current_color = current_color
+    self.target_color = target_color
+    self.duration_s = duration_s
+
+    if board and dotstar:
+      self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, 12, brightness=LEDS_DEFAULT_BRIGHTNESS)
+    else:
+      self.LEDS = None
+
+
+  def set_leds(self, color):
+    if self.LEDS:
+      self.LEDS.fill((*color, LEDS_DEFAULT_BRIGHTNESS))
+    else:
+      print("Setting LEDs to %s" % list(color))
+
+  def stop(self):
+      self._stop_event.set()
+
+  def stopped(self):
+      return self._stop_event.is_set()
+
+  def run(self):
+    print("Ramping from %s to %s" % (self.current_color, self.target_color))
+    start_color = deepcopy(self.current_color)
+    diff = (
+      self.target_color[0]-start_color[0],
+      self.target_color[1]-start_color[1],
+      self.target_color[2]-start_color[2],
+    )
+    t0 = time()
+    while True:
+      t = time() - t0
+      if self.stopped():
+        print("LED thread cancelled")
+        break
+      if t >= self.duration_s:
+        # lock to exact target and end the thread
+        self.set_leds(self.target_color)
+        break
+
+      for i in range(3):
+        self.current_color[i] = int(RampThread.ease(t, start_color[i], diff[i], self.duration_s))
+      # output the colours
+      self.set_leds(self.current_color)
+      sleep(1.0/60)
+
 class LedsManager:
   """
   LedsManager manages the state of the reader's LEDs.
   """
+
+  thread = None
+  current_color = [0,0,0]
+
   def __init__(self):
     # LED init
     # Using a DotStar Digital LED Strip with 12 LEDs connected to hardware SPI
-    if board and dotstar:
-      self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, 12, brightness=0.1)
-      self.fill_default()
-    else:
-      self.LEDS = None
+    self.fill_default()
+
+  def ramp(self, target_color, duration_s):
+    # in a thread, ramp from the current colour to the target_color colour, in 'duration' seconds
+    if self.thread:
+      self.current_color = self.thread.current_color
+      self.thread.stop()
+      self.thread.join()
+    self.thread = RampThread(self.current_color, target_color, duration_s)
+    self.thread.start()
 
   def fill_default(self):
-    if self.LEDS:
-      self.LEDS.fill((*LEDS_COLOUR_DEFAULT, LEDS_DEFAULT_BRIGHTNESS))
+    self.ramp(LEDS_COLOUR_DEFAULT, 1.0)
 
   def success_on(self):
-    if self.LEDS:
-      current_brightness = LEDS_MAX_BRIGHTNESS
-      self.LEDS.fill((*LEDS_COLOUR_SUCCESS, current_brightness))
+    self.ramp(LEDS_COLOUR_SUCCESS, 0.6)
 
   def success_off(self):
-    if self.LEDS:
-      current_brightness = LEDS_MAX_BRIGHTNESS
-      while current_brightness > 0.0:
-        current_brightness -= LEDS_FADE_BRIGHTNESS_STEP
-        self.LEDS.fill((*LEDS_COLOUR_SUCCESS, current_brightness))
-        sleep(LEDS_FADE_TIME_BETWEEN_STEP)
-      self.fill_default()
+    self.ramp(LEDS_COLOUR_DEFAULT, 0.6)
 
   def failed(self):
-    if self.LEDS:
-      current_brightness = LEDS_MAX_BRIGHTNESS
-
-      self.LEDS.fill((*LEDS_COLOUR_FAILED, current_brightness))
-      sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
-
-      self.LEDS.fill((*LEDS_COLOUR_FAILED, 0.0))
-      sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
-
-      self.LEDS.fill((*LEDS_COLOUR_FAILED, current_brightness))
-      sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
-
-      while current_brightness > 0.0:
-        current_brightness -= LEDS_FADE_BRIGHTNESS_STEP
-        self.LEDS.fill((*LEDS_COLOUR_FAILED, current_brightness))
-        sleep(LEDS_FADE_TIME_BETWEEN_STEP)
-      self.fill_default()
+    self.ramp(LEDS_COLOUR_FAILED, 0.6)
+    sleep(1.0)
+    self.ramp(LEDS_COLOUR_DEFAULT, 0.6)
 
 
 class TapManager:
@@ -157,17 +202,15 @@ class TapManager:
       sentry_sdk.capture_exception(e)
       return(1)
 
-  def tap_on(self):      
+  def tap_on(self):
     log(" Tap On: ", self.last_id)
-    t = Thread(target=self.leds.success_on)
-    t.start()
+    self.leds.success_on()
     self.send_tap(self.last_id)
 
   def tap_off(self):
     log("Tap Off: ", self.last_id)
     self.last_id = None
-    t = Thread(target=self.leds.success_off)
-    t.start()
+    self.leds.success_off()
 
   def _reset_tap_off_timer(self):
     # reset the tap-off timer for this ID
@@ -179,7 +222,7 @@ class TapManager:
 
   def _byte_string_to_lens_id(self, byte_string):
     """
-    Convert 04:04:A5:2C:F2:2A:5E:80 to 04a52cf22a5e80 by:
+    Convert an id of the form 04:04:A5:2C:F2:2A:5E:80 (as output from the C app) to 04a52cf22a5e80 by:
     - stripping ":" and whitespace
     - removing first byte
     - lowercasing
@@ -213,13 +256,14 @@ def byte_string_to_lens_id(byte_string):
 
 def main():
   """Launcher."""
-  print("KioskIV Lens Reader")
+  print("XOS Lens Reader (KioskIV)")
 
   shell = True
   popen = subprocess.Popen(CMD, cwd=FOLDER, shell=shell, stdout=subprocess.PIPE)
 
   tap_manager = TapManager()
-    
+  BYTE_STRING_RE = r'([0-9a-fA-F]{2}:?)+'
+
   while True:
     # wait for the next line from the C interface (if there are no NFCs there will be no lines)
     line = popen.stdout.readline().decode("utf-8")
@@ -228,7 +272,6 @@ def main():
     if re.match(BYTE_STRING_RE, line):
       # We have an ID.
       tap_manager.read_line(line)
-
 
 if __name__ == "__main__":
   main()
