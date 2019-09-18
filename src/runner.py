@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 from datetime import datetime
-from threading import Timer
+from threading import Timer, Thread
 from time import sleep, time
 
 import adafruit_dotstar as dotstar
@@ -76,7 +76,12 @@ class LedsManager:
     if self.LEDS:
       self.LEDS.fill((*LEDS_COLOUR_DEFAULT, LEDS_DEFAULT_BRIGHTNESS))
 
-  def success(self):
+  def success_on(self):
+    if self.LEDS:
+      current_brightness = LEDS_MAX_BRIGHTNESS
+      self.LEDS.fill((*LEDS_COLOUR_SUCCESS, current_brightness))
+
+  def success_off(self):
     if self.LEDS:
       current_brightness = LEDS_MAX_BRIGHTNESS
       while current_brightness > 0.0:
@@ -152,12 +157,15 @@ class TapManager:
 
   def tap_on(self):      
     log(" Tap On: ", self.last_id)
-    self.leds.success()
+    t = Thread(target=self.leds.success_on)
+    t.start()
     self.send_tap(self.last_id)
 
   def tap_off(self):
     log("Tap Off: ", self.last_id)
     self.last_id = None
+    t = Thread(target=self.leds.success_off)
+    t.start()
 
   def _reset_tap_off_timer(self):
     # reset the tap-off timer for this ID
