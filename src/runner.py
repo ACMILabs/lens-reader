@@ -2,6 +2,7 @@
 
 """ Kiosk IV tap reader running on a Raspberry Pi """
 
+import math
 import os
 import re
 import subprocess
@@ -38,11 +39,12 @@ READER_MODEL = os.getenv('READER_MODEL')
 READER_NAME = DEVICE_NAME or 'nfc-' + IP_ADDRESS.split('.')[-1]
 
 LEDS_BRIGHTNESS = float(os.getenv('LEDS_BRIGHTNESS', '1.0'))
-LEDS_DEFAULT_COLOR = envtotuple('LEDS_DEFAULT_COLOR', "130,127,127")  # White
-LEDS_SUCCESS_COLOUR = envtotuple('LEDS_SUCCESS_COLOUR', "0,255,0")  # Green
-LEDS_FAILED_COLOUR = envtotuple('LEDS_FAILED_COLOUR', "255,0,0")  # Red
-LEDS_RAMP_UP_TIME = float(os.getenv('LEDS_SUCCESS_RAMP_UP_TIME', "0.3"))
-LEDS_RAMP_DOWN_TIME = float(os.getenv('LEDS_SUCCESS_RAMP_UP_TIME', "0.6"))
+LEDS_BREATHE_COLOR_OUT = envtotuple('LEDS_BREATHE_COLOR_OUT', "95,70,26")  # Dim warm white
+LEDS_BREATHE_COLOR_IN = envtotuple('LEDS_BREATHE_COLOR_IN', "205,157,75")  # Medium warm white
+LEDS_BREATHE_TIME = float(os.getenv('LEDS_BREATHE_TIME', '5.0'))
+LEDS_SUCCESS_COLOUR = envtotuple('LEDS_SUCCESS_COLOUR', "246,238,223")  # Bright warm white
+LEDS_FAILED_COLOUR = envtotuple('LEDS_FAILED_COLOUR', "137,0,34")  # Medium red
+LEDS_SIGNAL_TIMES = envtotuple('LEDS_SIGNAL_TIMES', "0.3,0.5,0.6") # up ramp_on, auto-hold (if needed), down ramp_on
 
 if IS_OSX:
   FOLDER = "../bin/mac/"
@@ -58,9 +60,10 @@ else:
 sentry_sdk.init(SENTRY_ID)
 
 
-class RampThread(Thread):
-  """Thread class with a stop() method. Theramp_ thread itself has to check
-  regularly for the stopped() condition."""
+class LEDControllerThread(Thread):
+  """
+  A thread that cycles the LED colours as a gaussian-ish 'breathe' state, until interrupted with a ramp_on in/ramp_on out to another colour.
+  """
 
   @staticmethod
   def ease(t, b, c, d):
@@ -70,12 +73,15 @@ class RampThread(Thread):
     r = c * t * t * t + b
     return r
 
-  def __init__(self, current_color, target_color, duration_s):
-    super(RampThread, self).__init__()
-    self._stop_event = Event()
-    self.current_color = current_color
-    self.target_color = target_color
-    self.duration_s = duration_s
+  def __init__(self):
+    super(LEDControllerThread, self).__init__()
+    self.current_color = [0,0,0] # the color LEDs will be set to each fram
+    self.breathe_color = [0,0,0] # the current color of the breathing animation
+
+    self.ramp_target_color = [0,0,0] # the target colour of the ramping animation
+    self.ramp_target = 0.0
+    self.ramp_duration = None
+    self.ramp_time0 = None
 
     if board and dotstar:
       self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, 12, brightness=LEDS_BRIGHTNESS)
@@ -83,116 +89,89 @@ class RampThread(Thread):
       self.LEDS = None
 
   def set_leds(self, color):
+    color = [min(max(int(i), 0),255) for i in color]
     if self.LEDS:
       self.LEDS.fill((*color, LEDS_BRIGHTNESS))
     else:
       print("Setting LEDs to %s" % list(color))
 
-  def stop(self):
-      self._stop_event.set()
+  def ramp_on(self, target_color, duration_s):
+    """Set values to produce a fade to the ramp colour"""
+    # print("RAMPING TO %s" % str(target_color))
+    self.ramp_target_color = target_color
+    self.ramp_target = 1.0
+    self.ramp_duration = duration_s
+    self.ramp_time0 = time()
 
-  def stopped(self):
-      return self._stop_event.is_set()
+  def ramp_off(self, duration_s):
+    """Set values to produce a fade out from the ramp colour"""
+    # print("RAMPING OFF")
+    self.ramp_duration = duration_s
+    self.ramp_target = 0.0
+    self.ramp_time0 = time()
+
+  def _calculate_breathe_colour(self, t):
+    # cubic approximation to gauss from http://www.iquilezles.org/www/articles/functions/functions.htm
+    x = t % LEDS_BREATHE_TIME
+    # returns a ramp_on value between 0 (breathe out) and 1 (breathe in)
+    w = LEDS_BREATHE_TIME / 2
+    if (x<w):
+      x = (-x + w) / w
+    else:
+      x = (x - w) / w
+    ramp_val = 1.0 - x * x * (3.0 - 2.0 * x)
+    for i in range(3):
+      self.breathe_color[i] = LEDS_BREATHE_COLOR_OUT[i] + ramp_val * (LEDS_BREATHE_COLOR_IN[i] - LEDS_BREATHE_COLOR_OUT[i])
+
+  def _calculate_ramp_proportion(self):
+    """
+    If we're ramping up or down, calculate where we are in that process (from 0 to 1 and back again, depending on the value of target_proprotion)
+    """
+    if self.ramp_time0 is not None:
+      # we're ramping
+      t = time() - self.ramp_time0
+      if t >= self.ramp_duration:
+        # we're done ramping
+        self.ramp_time0 = None
+        return self.ramp_target
+      else:
+        # we're not done ramping
+        if self.ramp_target > 0.5:
+          # we're ramping up
+          return LEDControllerThread.ease(t, 0.0, self.ramp_target, self.ramp_duration)
+        else:
+          # we're ramping down
+          return LEDControllerThread.ease(t, 1.0, self.ramp_target-1.0, self.ramp_duration)
+    else:
+      # we're not ramping
+      return self.ramp_target
 
   def run(self):
-    print("Ramping from %s to %s" % (self.current_color, self.target_color))
-    start_color = deepcopy(self.current_color)
-    diff = (
-      self.target_color[0]-start_color[0],
-      self.target_color[1]-start_color[1],
-      self.target_color[2]-start_color[2],
-    )
     t0 = time()
     while True:
       t = time() - t0
-      if self.stopped():
-        print("LEDramp_ thread cancelled")
-        break
-      if t >= self.duration_s:
-        # lock to exact target and end theramp_ thread
-        self.set_leds(self.target_color)
-        break
+      self._calculate_breathe_colour(t)
+      ramp_proportion = self._calculate_ramp_proportion()
+      print("RAMP %s" % ramp_proportion)
 
+      # mix the breathe and ramp_on colours according to the current ramp_on amount
       for i in range(3):
-        self.current_color[i] = int(RampThread.ease(t, start_color[i], diff[i], self.duration_s))
+        self.current_color[i] = ramp_proportion * self.ramp_target_color[i] + (1.0 - ramp_proportion) * self.breathe_color[i]
+
       # output the colours
       self.set_leds(self.current_color)
       sleep(1.0/60)
 
-
-class CycleThread(Thread):
-  """Thread class with a stop() method that cycles to and fro between colours"""
-
-  ramp_thread = None
-
-  def __init__(self, color_1, color_2, duration_s):
-    super(CycleThread, self).__init__()
-    self._stop_event = Event()
-    self.color_1 = color_1
-    self.color_2 = color_2
-    self.duration_s = duration_s
-
-  def stop(self):
-    self._stop_event.set()
-
-  def stopped(self):
-    return self._stop_event.is_set()
-
-  def run(self):
-    # BLARGH THIS NEEDS PROPER THINKNIG ABOUT
-    print("Cycling between %s and %s" % (self.color_1, self.color_2))
-    while True:
-      self.ramp_thread = RampThread(colour_1, colour_2, duration_s)
-      sleep(duration_s)
-      self.ramp_thread = RampThread(colour_2, colour_1, duration_s)
-      sleep(duration_s)
-
-
-class LedsManager:
-  """
-  LedsManager manages the state of the reader's LEDs.
-  """
-
-  ramp_thread = None
-  cycle_thread = None
-  current_color = [0,0,0]
-
-  def __init__(self):
-    # LED init
-    # Using a DotStar Digital LED Strip with 12 LEDs connected to hardware SPI
-    self.default_mode()
-
-  def stop_ramp(self):
-    if self.ramp_thread:
-      self.current_color = self.ramp_thread.current_color
-      self.ramp_thread.stop()
-      self.ramp_thread.join()
-
-  def cycle(self, colour_1, colour_2, duration_s):
-    self.stop_ramp()
-    def _c():
-      while True:
-      self.cycle_thread = Thread(target=_c)
-
-  def ramp(self, target_color, duration_s):
-    # in aramp_ thread, ramp from the current colour to the target_color colour, in 'duration' seconds
-    self.stop_ramp()
-    self.ramp_thread = RampThread(self.current_color, target_color, duration_s)
-    self.ramp_thread.start()
-
-  def default_mode(self):
-    def cycle((1,1,1), LEDS_DEFAULT_COLOR, 5.0)
-
   def success_on(self):
-    self.ramp(LEDS_SUCCESS_COLOUR, LEDS_RAMP_UP_TIME)
+    self.ramp_on(LEDS_SUCCESS_COLOUR, LEDS_SIGNAL_TIMES[0])
 
   def success_off(self):
-    self.ramp(LEDS_DEFAULT_COLOR, LEDS_RAMP_DOWN_TIME)
+    self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
   def failed(self):
-    self.ramp(LEDS_FAILED_COLOUR, LEDS_RAMP_UP_TIME)
-    sleep(0.5)
-    self.ramp(LEDS_DEFAULT_COLOR, LEDS_RAMP_DOWN_TIME)
+    self.ramp_on(LEDS_FAILED_COLOUR, LEDS_SIGNAL_TIMES[0])
+    sleep(LEDS_SIGNAL_TIMES[1])
+    self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
 
 class TapManager:
@@ -206,7 +185,8 @@ class TapManager:
     self.last_id = None
     self.last_id_time = time()
     self.tap_off_timer = None
-    self.leds = LedsManager()
+    self.leds = LEDControllerThread()
+    self.leds.start()
 
   def send_tap(self, id):
     """refer to docs.python-requests.org for implementation examples"""
@@ -238,6 +218,7 @@ class TapManager:
     except requests.exceptions.ConnectionError as e:
       log("Failed to post tap message to %s: %s\n%s" % (XOS_URL, params, str(e)))
       sentry_sdk.capture_exception(e)
+      self.leds.failed()
       return(1)
 
   def tap_on(self):

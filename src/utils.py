@@ -44,5 +44,5 @@ def envtotuple(env_name, default=()):
   v = os.getenv(env_name)
   if not v:
     v = default
-  return tuple([int(x.strip()) for x in v.split(",")])
+  return tuple([float(x.strip()) for x in v.split(",")])
 
