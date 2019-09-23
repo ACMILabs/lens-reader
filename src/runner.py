@@ -28,7 +28,7 @@ except (NotImplementedError, ModuleNotFoundError):
 
 
 # Constants defined in environment
-DEBUG = os.getenv('DEBUG', '').lower() == "true"
+DEBUG = os.getenv('DEBUG', 'false').lower() == "true" # whether to use the DEBUG version of the idtech C code
 XOS_URL = os.getenv('XOS_URL', 'http://localhost:8888')
 AUTH_TOKEN = os.getenv('AUTH_TOKEN', '')
 LABEL = os.getenv('LABEL')
@@ -39,10 +39,10 @@ READER_MODEL = os.getenv('READER_MODEL')
 READER_NAME = DEVICE_NAME or 'nfc-' + IP_ADDRESS.split('.')[-1]
 
 LEDS_BRIGHTNESS = float(os.getenv('LEDS_BRIGHTNESS', '1.0'))
-LEDS_BREATHE_COLOR_OUT = envtotuple('LEDS_BREATHE_COLOR_OUT', "95,70,26")  # Dim warm white
-LEDS_BREATHE_COLOR_IN = envtotuple('LEDS_BREATHE_COLOR_IN', "205,157,75")  # Medium warm white
-LEDS_BREATHE_TIME = float(os.getenv('LEDS_BREATHE_TIME', '5.0'))
-LEDS_SUCCESS_COLOUR = envtotuple('LEDS_SUCCESS_COLOUR', "246,238,223")  # Bright warm white
+LEDS_BREATHE_TIME = float(os.getenv('LEDS_BREATHE_TIME', '5.0')) # seconds to cycle between IN and OUT colours.
+LEDS_BREATHE_COLOUR_OUT = envtotuple('LEDS_BREATHE_COLOUR_OUT', "36,26,10")  # Dim warm white
+LEDS_BREATHE_COLOUR_IN = envtotuple('LEDS_BREATHE_COLOUR_IN',  "95,70,26")  # Medium warm white
+LEDS_SUCCESS_COLOUR = envtotuple('LEDS_SUCCESS_COLOUR', "255,238,202")  # Bright warm white
 LEDS_FAILED_COLOUR = envtotuple('LEDS_FAILED_COLOUR', "137,0,34")  # Medium red
 LEDS_SIGNAL_TIMES = envtotuple('LEDS_SIGNAL_TIMES', "0.3,0.5,0.6") # up ramp_on, auto-hold (if needed), down ramp_on
 
@@ -52,9 +52,9 @@ else:
   FOLDER = "../bin/arm_32/"
 
 if DEBUG:
-  CMD = ["./idtech_debug"]
+  CMD = ["./idtech_debug"] # this will run silently
 else:
-  CMD = ["./idtech"]
+  CMD = ["./idtech"] # this will produce 2 beeps from the reader when run
 
 # Setup Sentry
 sentry_sdk.init(SENTRY_ID)
@@ -75,10 +75,10 @@ class LEDControllerThread(Thread):
 
   def __init__(self):
     super(LEDControllerThread, self).__init__()
-    self.current_color = [0,0,0] # the color LEDs will be set to each fram
-    self.breathe_color = [0,0,0] # the current color of the breathing animation
+    self.current_colour = [0,0,0] # the colour LEDs will be set to each fram
+    self.breathe_colour = [0,0,0] # the current colour of the breathing animation
 
-    self.ramp_target_color = [0,0,0] # the target colour of the ramping animation
+    self.ramp_target_colour = [0,0,0] # the target colour of the ramping animation
     self.ramp_target = 0.0
     self.ramp_duration = None
     self.ramp_time0 = None
@@ -88,17 +88,17 @@ class LEDControllerThread(Thread):
     else:
       self.LEDS = None
 
-  def set_leds(self, color):
-    color = [min(max(int(i), 0),255) for i in color]
+  def set_leds(self, colour):
+    colour = [min(max(int(i), 0),255) for i in colour]
     if self.LEDS:
-      self.LEDS.fill((*color, LEDS_BRIGHTNESS))
+      self.LEDS.fill((*colour, LEDS_BRIGHTNESS))
     else:
-      print("Setting LEDs to %s" % list(color))
+      print("Setting LEDs to %s" % list(colour))
 
-  def ramp_on(self, target_color, duration_s):
+  def ramp_on(self, target_colour, duration_s):
     """Set values to produce a fade to the ramp colour"""
-    # print("RAMPING TO %s" % str(target_color))
-    self.ramp_target_color = target_color
+    # print("RAMPING TO %s" % str(target_colour))
+    self.ramp_target_colour = target_colour
     self.ramp_target = 1.0
     self.ramp_duration = duration_s
     self.ramp_time0 = time()
@@ -121,7 +121,7 @@ class LEDControllerThread(Thread):
       x = (x - w) / w
     ramp_val = 1.0 - x * x * (3.0 - 2.0 * x)
     for i in range(3):
-      self.breathe_color[i] = LEDS_BREATHE_COLOR_OUT[i] + ramp_val * (LEDS_BREATHE_COLOR_IN[i] - LEDS_BREATHE_COLOR_OUT[i])
+      self.breathe_colour[i] = LEDS_BREATHE_COLOUR_OUT[i] + ramp_val * (LEDS_BREATHE_COLOUR_IN[i] - LEDS_BREATHE_COLOUR_OUT[i])
 
   def _calculate_ramp_proportion(self):
     """
@@ -152,14 +152,13 @@ class LEDControllerThread(Thread):
       t = time() - t0
       self._calculate_breathe_colour(t)
       ramp_proportion = self._calculate_ramp_proportion()
-      print("RAMP %s" % ramp_proportion)
 
       # mix the breathe and ramp_on colours according to the current ramp_on amount
       for i in range(3):
-        self.current_color[i] = ramp_proportion * self.ramp_target_color[i] + (1.0 - ramp_proportion) * self.breathe_color[i]
+        self.current_colour[i] = ramp_proportion * self.ramp_target_colour[i] + (1.0 - ramp_proportion) * self.breathe_colour[i]
 
       # output the colours
-      self.set_leds(self.current_color)
+      self.set_leds(self.current_colour)
       sleep(1.0/60)
 
   def success_on(self):
