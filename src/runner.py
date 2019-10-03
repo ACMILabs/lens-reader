@@ -2,13 +2,15 @@
 
 """ Kiosk IV tap reader running on a Raspberry Pi """
 
+import math
 import os
 import re
 import subprocess
 import sys
 from datetime import datetime
-from threading import Timer, Thread
+from threading import Timer, Thread, Event
 from time import sleep, time
+from copy import deepcopy
 
 import requests
 import sentry_sdk
@@ -26,7 +28,7 @@ except (NotImplementedError, ModuleNotFoundError):
 
 
 # Constants defined in environment
-DEBUG = os.getenv('DEBUG', '').lower() == "true"
+DEBUG = os.getenv('DEBUG', 'false').lower() == "true" # whether to use the DEBUG version of the idtech C code
 XOS_URL = os.getenv('XOS_URL', 'http://localhost:8888')
 AUTH_TOKEN = os.getenv('AUTH_TOKEN', '')
 LABEL = os.getenv('LABEL')
@@ -36,16 +38,13 @@ DEVICE_NAME = os.getenv('DEVICE_NAME')
 READER_MODEL = os.getenv('READER_MODEL')
 READER_NAME = DEVICE_NAME or 'nfc-' + IP_ADDRESS.split('.')[-1]
 
-LEDS_COLOUR_DEFAULT = envtotuple('LEDS_COLOR_DEFAULT', "254,254,254")  # White
-LEDS_COLOUR_SUCCESS = envtotuple('LEDS_COLOUR_SUCCESS', "0,254,0")  # Green
-LEDS_COLOUR_FAILED = envtotuple('LEDS_COLOUR_FAILED', "254,0,0")  # Red
-LEDS_DEFAULT_BRIGHTNESS = float(os.getenv('LEDS_DEFAULT_BRIGHTNESS', '0.1'))
-LEDS_MAX_BRIGHTNESS = float(os.getenv('LEDS_MAX_BRIGHTNESS', '0.5'))
-LEDS_FADE_BRIGHTNESS_STEP = float(os.getenv('LEDS_FADE_BRIGHTNESS_STEP', '0.01'))
-LEDS_FADE_TIME_BETWEEN_STEP = float(os.getenv('LEDS_FADE_TIME_BETWEEN_STEP', '0.005'))
-LEDS_TIME_BETWEEN_FAILED_BLINKS = float(os.getenv('LEDS_TIME_BETWEEN_FAILED_BLINKS', '0.3'))
-
-BYTE_STRING_RE = r'([0-9a-fA-F]{2}:?)+'
+LEDS_BRIGHTNESS = float(os.getenv('LEDS_BRIGHTNESS', '1.0'))
+LEDS_BREATHE_TIME = float(os.getenv('LEDS_BREATHE_TIME', '5.0')) # seconds to cycle between IN and OUT colours.
+LEDS_BREATHE_COLOUR_OUT = envtotuple('LEDS_BREATHE_COLOUR_OUT', "36,26,10")  # Dim warm white
+LEDS_BREATHE_COLOUR_IN = envtotuple('LEDS_BREATHE_COLOUR_IN',  "95,70,26")  # Medium warm white
+LEDS_SUCCESS_COLOUR = envtotuple('LEDS_SUCCESS_COLOUR', "255,238,202")  # Bright warm white
+LEDS_FAILED_COLOUR = envtotuple('LEDS_FAILED_COLOUR', "137,0,34")  # Medium red
+LEDS_SIGNAL_TIMES = envtotuple('LEDS_SIGNAL_TIMES', "0.3,0.5,0.6") # up ramp_on, auto-hold (if needed), down ramp_on
 
 if IS_OSX:
   FOLDER = "../bin/mac/"
@@ -53,63 +52,125 @@ else:
   FOLDER = "../bin/arm_32/"
 
 if DEBUG:
-  CMD = ["./idtech_debug"]
+  CMD = ["./idtech_debug"] # this will run silently
 else:
-  CMD = ["./idtech"]
+  CMD = ["./idtech"] # this will produce 2 beeps from the reader when run
 
 # Setup Sentry
 sentry_sdk.init(SENTRY_ID)
 
 
-class LedsManager:
+class LEDControllerThread(Thread):
   """
-  LedsManager manages the state of the reader's LEDs.
+  A thread that cycles the LED colours as a gaussian-ish 'breathe' state, until interrupted with a ramp_on in/ramp_on out to another colour.
   """
+
+  @staticmethod
+  def ease(t, b, c, d):
+    # Penner's easeInCubic
+    # t: current time, b: beginning value, c: change in value, d: duration
+    t = t / d
+    r = c * t * t * t + b
+    return r
+
   def __init__(self):
-    # LED init
-    # Using a DotStar Digital LED Strip with 12 LEDs connected to hardware SPI
+    super(LEDControllerThread, self).__init__()
+    self.current_colour = [0,0,0] # the colour LEDs will be set to each fram
+    self.breathe_colour = [0,0,0] # the current colour of the breathing animation
+
+    self.ramp_target_colour = [0,0,0] # the target colour of the ramping animation
+    self.ramp_target = 0.0
+    self.ramp_duration = None
+    self.ramp_time0 = None
+
     if board and dotstar:
-      self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, 12, brightness=0.1)
-      self.fill_default()
+      self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, 12, brightness=LEDS_BRIGHTNESS)
     else:
       self.LEDS = None
 
-  def fill_default(self):
+  def set_leds(self, colour):
+    colour = [min(max(int(i), 0),255) for i in colour]
     if self.LEDS:
-      self.LEDS.fill((*LEDS_COLOUR_DEFAULT, LEDS_DEFAULT_BRIGHTNESS))
+      self.LEDS.fill((*colour, LEDS_BRIGHTNESS))
+    else:
+      print("Setting LEDs to %s" % list(colour))
+
+  def ramp_on(self, target_colour, duration_s):
+    """Set values to produce a fade to the ramp colour"""
+    # print("RAMPING TO %s" % str(target_colour))
+    self.ramp_target_colour = target_colour
+    self.ramp_target = 1.0
+    self.ramp_duration = duration_s
+    self.ramp_time0 = time()
+
+  def ramp_off(self, duration_s):
+    """Set values to produce a fade out from the ramp colour"""
+    # print("RAMPING OFF")
+    self.ramp_duration = duration_s
+    self.ramp_target = 0.0
+    self.ramp_time0 = time()
+
+  def _calculate_breathe_colour(self, t):
+    # cubic approximation to gauss from http://www.iquilezles.org/www/articles/functions/functions.htm
+    x = t % LEDS_BREATHE_TIME
+    # returns a ramp_on value between 0 (breathe out) and 1 (breathe in)
+    w = LEDS_BREATHE_TIME / 2
+    if (x<w):
+      x = (-x + w) / w
+    else:
+      x = (x - w) / w
+    ramp_val = 1.0 - x * x * (3.0 - 2.0 * x)
+    for i in range(3):
+      self.breathe_colour[i] = LEDS_BREATHE_COLOUR_OUT[i] + ramp_val * (LEDS_BREATHE_COLOUR_IN[i] - LEDS_BREATHE_COLOUR_OUT[i])
+
+  def _calculate_ramp_proportion(self):
+    """
+    If we're ramping up or down, calculate where we are in that process (from 0 to 1 and back again, depending on the value of target_proprotion)
+    """
+    if self.ramp_time0 is not None:
+      # we're ramping
+      t = time() - self.ramp_time0
+      if t >= self.ramp_duration:
+        # we're done ramping
+        self.ramp_time0 = None
+        return self.ramp_target
+      else:
+        # we're not done ramping
+        if self.ramp_target > 0.5:
+          # we're ramping up
+          return LEDControllerThread.ease(t, 0.0, self.ramp_target, self.ramp_duration)
+        else:
+          # we're ramping down
+          return LEDControllerThread.ease(t, 1.0, self.ramp_target-1.0, self.ramp_duration)
+    else:
+      # we're not ramping
+      return self.ramp_target
+
+  def run(self):
+    t0 = time()
+    while True:
+      t = time() - t0
+      self._calculate_breathe_colour(t)
+      ramp_proportion = self._calculate_ramp_proportion()
+
+      # mix the breathe and ramp_on colours according to the current ramp_on amount
+      for i in range(3):
+        self.current_colour[i] = ramp_proportion * self.ramp_target_colour[i] + (1.0 - ramp_proportion) * self.breathe_colour[i]
+
+      # output the colours
+      self.set_leds(self.current_colour)
+      sleep(1.0/60)
 
   def success_on(self):
-    if self.LEDS:
-      current_brightness = LEDS_MAX_BRIGHTNESS
-      self.LEDS.fill((*LEDS_COLOUR_SUCCESS, current_brightness))
+    self.ramp_on(LEDS_SUCCESS_COLOUR, LEDS_SIGNAL_TIMES[0])
 
   def success_off(self):
-    if self.LEDS:
-      current_brightness = LEDS_MAX_BRIGHTNESS
-      while current_brightness > 0.0:
-        current_brightness -= LEDS_FADE_BRIGHTNESS_STEP
-        self.LEDS.fill((*LEDS_COLOUR_SUCCESS, current_brightness))
-        sleep(LEDS_FADE_TIME_BETWEEN_STEP)
-      self.fill_default()
+    self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
   def failed(self):
-    if self.LEDS:
-      current_brightness = LEDS_MAX_BRIGHTNESS
-
-      self.LEDS.fill((*LEDS_COLOUR_FAILED, current_brightness))
-      sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
-
-      self.LEDS.fill((*LEDS_COLOUR_FAILED, 0.0))
-      sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
-
-      self.LEDS.fill((*LEDS_COLOUR_FAILED, current_brightness))
-      sleep(LEDS_TIME_BETWEEN_FAILED_BLINKS)
-
-      while current_brightness > 0.0:
-        current_brightness -= LEDS_FADE_BRIGHTNESS_STEP
-        self.LEDS.fill((*LEDS_COLOUR_FAILED, current_brightness))
-        sleep(LEDS_FADE_TIME_BETWEEN_STEP)
-      self.fill_default()
+    self.ramp_on(LEDS_FAILED_COLOUR, LEDS_SIGNAL_TIMES[0])
+    sleep(LEDS_SIGNAL_TIMES[1])
+    self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
 
 class TapManager:
@@ -123,7 +184,8 @@ class TapManager:
     self.last_id = None
     self.last_id_time = time()
     self.tap_off_timer = None
-    self.leds = LedsManager()
+    self.leds = LEDControllerThread()
+    self.leds.start()
 
   def send_tap(self, id):
     """refer to docs.python-requests.org for implementation examples"""
@@ -155,19 +217,18 @@ class TapManager:
     except requests.exceptions.ConnectionError as e:
       log("Failed to post tap message to %s: %s\n%s" % (XOS_URL, params, str(e)))
       sentry_sdk.capture_exception(e)
+      self.leds.failed()
       return(1)
 
-  def tap_on(self):      
+  def tap_on(self):
     log(" Tap On: ", self.last_id)
-    t = Thread(target=self.leds.success_on)
-    t.start()
+    self.leds.success_on()
     self.send_tap(self.last_id)
 
   def tap_off(self):
     log("Tap Off: ", self.last_id)
     self.last_id = None
-    t = Thread(target=self.leds.success_off)
-    t.start()
+    self.leds.success_off()
 
   def _reset_tap_off_timer(self):
     # reset the tap-off timer for this ID
@@ -179,7 +240,7 @@ class TapManager:
 
   def _byte_string_to_lens_id(self, byte_string):
     """
-    Convert 04:04:A5:2C:F2:2A:5E:80 to 04a52cf22a5e80 by:
+    Convert an id of the form 04:04:A5:2C:F2:2A:5E:80 (as output from the C app) to 04a52cf22a5e80 by:
     - stripping ":" and whitespace
     - removing first byte
     - lowercasing
@@ -213,13 +274,14 @@ def byte_string_to_lens_id(byte_string):
 
 def main():
   """Launcher."""
-  print("KioskIV Lens Reader")
+  print("XOS Lens Reader (KioskIV)")
 
   shell = True
   popen = subprocess.Popen(CMD, cwd=FOLDER, shell=shell, stdout=subprocess.PIPE)
 
   tap_manager = TapManager()
-    
+  BYTE_STRING_RE = r'([0-9a-fA-F]{2}:?)+'
+
   while True:
     # wait for the next line from the C interface (if there are no NFCs there will be no lines)
     line = popen.stdout.readline().decode("utf-8")
@@ -228,7 +290,6 @@ def main():
     if re.match(BYTE_STRING_RE, line):
       # We have an ID.
       tap_manager.read_line(line)
-
 
 if __name__ == "__main__":
   main()
