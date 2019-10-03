@@ -27,17 +27,18 @@ except (NotImplementedError, ModuleNotFoundError):
   board = None
 
 
-# Constants defined in environment
+# Constants defined in environment. Changes here should be documented in README.
 DEBUG = os.getenv('DEBUG', 'false').lower() == "true" # whether to use the DEBUG version of the idtech C code
 XOS_URL = os.getenv('XOS_URL', 'http://localhost:8888')
 AUTH_TOKEN = os.getenv('AUTH_TOKEN', '')
 LABEL = os.getenv('LABEL')
 SENTRY_ID = os.getenv('SENTRY_ID')
-TAP_OFF_TIMEOUT = float(os.getenv('TAP_OFF_TIMEOUT', '0.5')) # seconds
+
 DEVICE_NAME = os.getenv('DEVICE_NAME')
 READER_MODEL = os.getenv('READER_MODEL')
-READER_NAME = DEVICE_NAME or 'nfc-' + IP_ADDRESS.split('.')[-1]
+READER_NAME = DEVICE_NAME or 'nfc-' + IP_ADDRESS.split('.')[-1] # not user-settable
 
+TAP_OFF_TIMEOUT = float(os.getenv('TAP_OFF_TIMEOUT', '0.5')) # seconds
 LEDS_BRIGHTNESS = float(os.getenv('LEDS_BRIGHTNESS', '1.0'))
 LEDS_BREATHE_TIME = float(os.getenv('LEDS_BREATHE_TIME', '5.0')) # seconds to cycle between IN and OUT colours.
 LEDS_BREATHE_COLOUR_OUT = envtotuple('LEDS_BREATHE_COLOUR_OUT', "36,26,10")  # Dim warm white
