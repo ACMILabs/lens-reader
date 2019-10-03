@@ -46,6 +46,7 @@ LEDS_BREATHE_COLOUR_IN = envtotuple('LEDS_BREATHE_COLOUR_IN',  "95,70,26")  # Me
 LEDS_SUCCESS_COLOUR = envtotuple('LEDS_SUCCESS_COLOUR', "255,238,202")  # Bright warm white
 LEDS_FAILED_COLOUR = envtotuple('LEDS_FAILED_COLOUR', "137,0,34")  # Medium red
 LEDS_SIGNAL_TIMES = envtotuple('LEDS_SIGNAL_TIMES', "0.3,0.5,0.6") # up ramp_on, auto-hold (if needed), down ramp_on
+LEDS_IN_STRING = int(os.getenv('LEDS_IN_STRING', '12')) # Number of LEDs to light up
 
 if IS_OSX:
   FOLDER = "../bin/mac/"
@@ -85,7 +86,7 @@ class LEDControllerThread(Thread):
     self.ramp_time0 = None
 
     if board and dotstar:
-      self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, 12, brightness=LEDS_BRIGHTNESS)
+      self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, LEDS_IN_STRING, brightness=LEDS_BRIGHTNESS)
     else:
       self.LEDS = None
 
