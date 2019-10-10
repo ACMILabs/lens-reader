@@ -4,8 +4,7 @@ sentry-sdk
 
 # Python libraries for Dotstar LEDs SK9822/APA102
 RPi.GPIO
-# git+https://github.com/ACMILabs/Adafruit_Blinka.git
-Adafruit_Blinka
+git+https://github.com/ACMILabs/Adafruit_Blinka.git
 adafruit-circuitpython-dotstar
 
 # Python libraries for Neopixel LEDs
