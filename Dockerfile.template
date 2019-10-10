@@ -12,7 +12,7 @@ FROM balenalib/raspberrypi3-python:3.7.4-buster-run
 # use `install_packages` if you need to install dependencies,
 # for instance if you need git, just uncomment the line below.
 COPY ./c_project/lib/libIDTechSDK.so /usr/local/lib/
-RUN install_packages g++ git curl libusb-1.0-0-dev build-essential
+RUN install_packages g++ git curl libusb-1.0-0-dev build-essential swig
 RUN ldconfig
 
 ENV PYTHONUNBUFFERED 1
