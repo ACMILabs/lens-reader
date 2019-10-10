@@ -8,5 +8,5 @@ git+https://github.com/ACMILabs/Adafruit_Blinka.git
 adafruit-circuitpython-dotstar
 
 # Python libraries for Neopixel LEDs
-git+https://github.com/jgarff/rpi_ws281x.git
+git+https://github.com/jgarff/rpi_ws281x.git#subdirectory=python
 adafruit-circuitpython-neopixel
