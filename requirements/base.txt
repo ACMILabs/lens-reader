@@ -6,3 +6,7 @@ sentry-sdk
 RPi.GPIO
 git+https://github.com/ACMILabs/Adafruit_Blinka.git
 adafruit-circuitpython-dotstar
+
+# Python libraries for Neopixel LEDs
+rpi_ws281x
+adafruit-circuitpython-neopixel

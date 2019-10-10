@@ -22,6 +22,12 @@ except ModuleNotFoundError: # this doesn't compile install
   dotstar = None
 
 try:
+  import neopixel
+  LEDS_NEOPIXELS_ORDER = neopixel.GRB
+except ModuleNotFoundError: # this doesn't compile install
+  neopixel = None
+
+try:
   import board
 except (NotImplementedError, ModuleNotFoundError):
   board = None
@@ -47,6 +53,7 @@ LEDS_SUCCESS_COLOUR = envtotuple('LEDS_SUCCESS_COLOUR', "255,238,202")  # Bright
 LEDS_FAILED_COLOUR = envtotuple('LEDS_FAILED_COLOUR', "137,0,34")  # Medium red
 LEDS_SIGNAL_TIMES = envtotuple('LEDS_SIGNAL_TIMES', "0.3,0.5,0.6") # up ramp_on, auto-hold (if needed), down ramp_on
 LEDS_IN_STRING = int(os.getenv('LEDS_IN_STRING', '12')) # Number of LEDs to light up
+LEDS_NEOPIXELS = os.getenv('LEDS_NEOPIXELS', 'false')
 
 if IS_OSX:
   FOLDER = "../bin/mac/"
@@ -85,15 +92,20 @@ class LEDControllerThread(Thread):
     self.ramp_duration = None
     self.ramp_time0 = None
 
-    if board and dotstar:
+    if board and dotstar and not LEDS_NEOPIXELS:
       self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, LEDS_IN_STRING, brightness=LEDS_BRIGHTNESS)
+    elif board and neopixel and LEDS_NEOPIXELS:
+      self.LEDS = neopixel.NeoPixel(board.D12, LEDS_IN_STRING, brightness=LEDS_BRIGHTNESS, auto_write=True, pixel_order=LEDS_NEOPIXELS_ORDER)
     else:
       self.LEDS = None
 
   def set_leds(self, colour):
     colour = [min(max(int(i), 0),255) for i in colour]
     if self.LEDS:
-      self.LEDS.fill((*colour, LEDS_BRIGHTNESS))
+      if neopixel and LEDS_NEOPIXELS:
+        self.LEDS.fill(colour)
+      else:
+        self.LEDS.fill((*colour, LEDS_BRIGHTNESS))
     else:
       print("Setting LEDs to %s" % list(colour))
 
