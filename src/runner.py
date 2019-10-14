@@ -29,9 +29,10 @@ except (NotImplementedError, ModuleNotFoundError):
 
 # Constants defined in environment. Changes here should be documented in README.
 DEBUG = os.getenv('DEBUG', 'false').lower() == "true" # whether to use the DEBUG version of the idtech C code
-XOS_URL = os.getenv('XOS_URL', 'http://localhost:8888')
+XOS_API_ENDPOINT = os.getenv('XOS_API_ENDPOINT', 'http://localhost:8000/api/')
+XOS_TAPS_ENDPOINT = f'{XOS_API_ENDPOINT}taps/'
 AUTH_TOKEN = os.getenv('AUTH_TOKEN', '')
-LABEL = os.getenv('LABEL')
+XOS_LABEL_ID = os.getenv('XOS_LABEL_ID', '1')
 SENTRY_ID = os.getenv('SENTRY_ID')
 
 DEVICE_NAME = os.getenv('DEVICE_NAME')
@@ -196,7 +197,7 @@ class TapManager:
         'uid':id
       },
       'tap_datetime': datetime.now(TZ).isoformat(),
-      'label': LABEL,
+      'label': XOS_LABEL_ID,
       'data': {
         'nfc_reader': {
           'mac_address': MAC_ADDRESS,
@@ -208,7 +209,7 @@ class TapManager:
     }
     headers={'Authorization': 'Token ' + AUTH_TOKEN}
     try:
-      r=requests.post(url=XOS_URL, json=params, headers=headers)
+      r=requests.post(url=XOS_TAPS_ENDPOINT, json=params, headers=headers)
       if r.status_code==201:
         log(r.text)
         return(0)
@@ -217,7 +218,7 @@ class TapManager:
         sentry_sdk.capture_message(r.text)
         return(1)
     except requests.exceptions.ConnectionError as e:
-      log("Failed to post tap message to %s: %s\n%s" % (XOS_URL, params, str(e)))
+      log("Failed to post tap message to %s: %s\n%s" % (XOS_TAPS_ENDPOINT, params, str(e)))
       sentry_sdk.capture_exception(e)
       self.leds.failed()
       return(1)
