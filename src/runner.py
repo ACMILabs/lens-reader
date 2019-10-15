@@ -29,8 +29,8 @@ except (NotImplementedError, ModuleNotFoundError):
 
 # Constants defined in environment. Changes here should be documented in README.
 DEBUG = os.getenv('DEBUG', 'false').lower() == "true" # whether to use the DEBUG version of the idtech C code
-XOS_API_ENDPOINT = os.getenv('XOS_API_ENDPOINT', 'http://localhost:8000/api/')
-XOS_TAPS_ENDPOINT = f'{XOS_API_ENDPOINT}taps/'
+TARGET_API_ENDPOINT = os.getenv('TARGET_API_ENDPOINT', 'http://localhost:8000/api/')
+TARGET_TAPS_ENDPOINT = os.getenv('TARGET_TAPS_ENDPOINT', f'{TARGET_API_ENDPOINT}taps/')
 AUTH_TOKEN = os.getenv('AUTH_TOKEN', '')
 XOS_LABEL_ID = os.getenv('XOS_LABEL_ID', '1')
 SENTRY_ID = os.getenv('SENTRY_ID')
@@ -209,7 +209,7 @@ class TapManager:
     }
     headers={'Authorization': 'Token ' + AUTH_TOKEN}
     try:
-      r=requests.post(url=XOS_TAPS_ENDPOINT, json=params, headers=headers)
+      r=requests.post(url=TARGET_TAPS_ENDPOINT, json=params, headers=headers)
       if r.status_code==201:
         log(r.text)
         return(0)
@@ -218,7 +218,7 @@ class TapManager:
         sentry_sdk.capture_message(r.text)
         return(1)
     except requests.exceptions.ConnectionError as e:
-      log("Failed to post tap message to %s: %s\n%s" % (XOS_TAPS_ENDPOINT, params, str(e)))
+      log("Failed to post tap message to %s: %s\n%s" % (TARGET_TAPS_ENDPOINT, params, str(e)))
       sentry_sdk.capture_exception(e)
       self.leds.failed()
       return(1)
