@@ -213,6 +213,10 @@ class TapManager:
       if r.status_code==201:
         log(r.text)
         return(0)
+      elif r.status_code==404:
+        log(r.text)
+        self.leds.failed()
+        return(1)
       else:
         log(r.text)
         sentry_sdk.capture_message(r.text)
