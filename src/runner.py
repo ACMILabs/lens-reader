@@ -193,7 +193,7 @@ class TapManager:
   def send_tap(self, id):
     """refer to docs.python-requests.org for implementation examples"""
     params={
-      'lens': {
+      'nfc_tag': {
         'uid':id
       },
       'tap_datetime': datetime.now(TZ).isoformat(),
