@@ -199,7 +199,7 @@ class TapManager:
       'tap_datetime': datetime.now(TZ).isoformat(),
       'label': XOS_LABEL_ID,
       'data': {
-        'nfc_reader': {
+        'lens_reader': {
           'mac_address': MAC_ADDRESS,
           'reader_ip': IP_ADDRESS,
           'reader_model': READER_MODEL,
