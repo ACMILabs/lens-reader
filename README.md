@@ -15,7 +15,7 @@ AUTH_TOKEN=(secret)                 # the token to use for XOS API communication
 BLINKA_FORCEBOARD=RASPBERRY_PI_4B   # Configuration for the Blinka lights
 BLINKA_FORCECHIP=BCM2XXX
 LABEL=1                             # The label ID of this reader
-XOS_URL=https://museumos-prod.acmi.net.au/api/taps/ # The URL to use for API messages
+TARGET_API_ENDPOINT=https://xos.acmi.net.au/api/ # The URL to use for API messages
 
 DEBUG=false             # set to 'true' to use the DEBUG build of the idtech C code
 SENTRY_ID=(secret)      # the ID to use for posting exceptions to Sentry
