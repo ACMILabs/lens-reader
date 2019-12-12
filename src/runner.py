@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+from ast import literal_eval
 from datetime import datetime
 from threading import Timer, Thread, Event
 from time import sleep, time
@@ -14,6 +15,8 @@ from copy import deepcopy
 
 import requests
 import sentry_sdk
+from flask import Flask, request
+
 from utils import IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ, envtotuple, log
 
 try:
@@ -61,6 +64,9 @@ else:
 
 # Setup Sentry
 sentry_sdk.init(SENTRY_ID)
+
+app = Flask(__name__)
+tap_manager = None
 
 
 class LEDControllerThread(Thread):
@@ -175,6 +181,11 @@ class LEDControllerThread(Thread):
     sleep(LEDS_SIGNAL_TIMES[1])
     self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
+  def trigger_lights(self, rgb_value, signal_times):
+    self.ramp_on(rgb_value, signal_times[0])
+    sleep(signal_times[1])
+    self.ramp_off(signal_times[-1])
+
 
 class TapManager:
   """
@@ -268,6 +279,45 @@ class TapManager:
       self.tap_on()
     self._reset_tap_off_timer()
 
+  def process_taps(self):
+    """
+    Read the lines from the C interface and processes taps.
+    """
+    shell = True
+    popen = subprocess.Popen(CMD, cwd=FOLDER, shell=shell, stdout=subprocess.PIPE)
+    BYTE_STRING_RE = r'([0-9a-fA-F]{2}:?)+'
+
+    while True:
+      # wait for the next line from the C interface (if there are no NFCs there will be no lines)
+      line = popen.stdout.readline().decode("utf-8")
+
+      # see if it is a tag read
+      if re.match(BYTE_STRING_RE, line):
+        # We have an ID.
+        self.read_line(line)
+
+
+@app.route('/api/lights/', methods=['POST'])
+def toggle_lights():
+    """
+    Endpoint to turn on the lights with a given RGB value and for a given time.
+
+    :param rgb_value: A tuple with three integers (0-255) making up an RGB combination.
+    :type rgb_value: tuple
+    :param ramp_time: A tuple of three floats that indicate the ramp on, hold and ramp off times in seconds.
+    :type ramp_time: tuple
+    :return: Success or error message
+
+    """
+    request_data = dict(request.get_json())
+    try:
+      rgb_value = literal_eval(request_data['rgb_value'])
+      ramp_time = literal_eval(request_data['ramp_time'])
+      tap_manager.leds.trigger_lights(rgb_value, ramp_time)
+    except (SyntaxError, TypeError):
+      return 'Invalid rgb_value or ramp_time', 400
+    return 'Lights triggered successfully', 200
+
 
 def byte_string_to_lens_id(byte_string):
   """
@@ -283,20 +333,14 @@ def main():
   """Launcher."""
   print("XOS Lens Reader (KioskIV)")
 
-  shell = True
-  popen = subprocess.Popen(CMD, cwd=FOLDER, shell=shell, stdout=subprocess.PIPE)
-
+  global tap_manager
   tap_manager = TapManager()
-  BYTE_STRING_RE = r'([0-9a-fA-F]{2}:?)+'
 
-  while True:
-    # wait for the next line from the C interface (if there are no NFCs there will be no lines)
-    line = popen.stdout.readline().decode("utf-8")
+  # Start thread to read and process taps.
+  Thread(target=tap_manager.process_taps).start()
 
-    # see if it is a tag read
-    if re.match(BYTE_STRING_RE, line):
-      # We have an ID.
-      tap_manager.read_line(line)
+  # Start a Flask server to expose /api/lights/ endpoint
+  app.run(host='0.0.0.0', port=8082)
 
 if __name__ == "__main__":
   main()
