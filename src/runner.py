@@ -91,6 +91,7 @@ class LEDControllerThread(Thread):
     self.ramp_target = 0.0
     self.ramp_duration = None
     self.ramp_time0 = None
+    self.on = False
 
     if board and dotstar:
       self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, LEDS_IN_STRING, brightness=LEDS_BRIGHTNESS)
@@ -181,10 +182,11 @@ class LEDControllerThread(Thread):
     sleep(LEDS_SIGNAL_TIMES[1])
     self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
-  def trigger_lights(self, rgb_value, signal_times):
-    self.ramp_on(rgb_value, signal_times[0])
-    sleep(signal_times[1])
-    self.ramp_off(signal_times[-1])
+  def toggle_lights(self, rgb_value, ramp_time, cross_fade):
+    self.ramp_target_colour = rgb_value
+    self.ramp_target = cross_fade
+    self.ramp_duration = ramp_time
+    self.ramp_time0 = time()
 
 
 class TapManager:
@@ -240,6 +242,7 @@ class TapManager:
 
   def tap_on(self):
     log(" Tap On: ", self.last_id)
+    self.leds.on = True
     self.leds.success_on()
     self.send_tap(self.last_id)
 
@@ -247,6 +250,7 @@ class TapManager:
     log("Tap Off: ", self.last_id)
     self.last_id = None
     self.leds.success_off()
+    self.leds.on = False
 
   def _reset_tap_off_timer(self):
     # reset the tap-off timer for this ID
@@ -292,7 +296,7 @@ class TapManager:
       line = popen.stdout.readline().decode("utf-8")
 
       # see if it is a tag read
-      if re.match(BYTE_STRING_RE, line):
+      if re.match(BYTE_STRING_RE, line) and not self.leds.on:
         # We have an ID.
         self.read_line(line)
 
@@ -304,19 +308,29 @@ def toggle_lights():
 
     :param rgb_value: A tuple with three integers (0-255) making up an RGB combination.
     :type rgb_value: tuple
-    :param ramp_time: A tuple of three floats that indicate the ramp on, hold and ramp off times in seconds.
-    :type ramp_time: tuple
+    :param ramp_time: A float that indicates the ramp on/off time in seconds.
+    :type ramp_time: float
+    :param cross_fade: A float from 0 to 1 that indicates the ramp target value.
+    :type cross_fade: float
     :return: Success or error message
 
     """
     request_data = dict(request.get_json())
     try:
       rgb_value = literal_eval(request_data['rgb_value'])
-      ramp_time = literal_eval(request_data['ramp_time'])
-      tap_manager.leds.trigger_lights(rgb_value, ramp_time)
+      ramp_time = float(request_data['ramp_time'])
+      cross_fade = float(request_data['cross_fade'])
+
+      assert (tap_manager.leds.on and cross_fade == 0.0) or (not tap_manager.leds.on and cross_fade > 0.0)
+
+      tap_manager.leds.on = cross_fade > 0.0
+      tap_manager.leds.toggle_lights(rgb_value, ramp_time, cross_fade)
+      return 'Leds toggled successfully.', 200
+
     except (SyntaxError, TypeError):
-      return 'Invalid rgb_value or ramp_time', 400
-    return 'Lights triggered successfully', 200
+      return 'Invalid rgb_value or ramp_time.', 400
+    except AssertionError as assertion_error:
+      return f'Cannot perform action, leds are currently {"on" if tap_manager.leds.on else "off"}', 409
 
 
 def byte_string_to_lens_id(byte_string):
