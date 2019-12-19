@@ -2,6 +2,7 @@
 
 """ Kiosk IV tap reader running on a Raspberry Pi """
 
+import json
 import math
 import os
 import re
@@ -334,9 +335,11 @@ def toggle_lights():
       return 'Leds toggled successfully.', 200
 
     except (SyntaxError, TypeError, ValueError):
-      return 'Invalid rgb_value, ramp_time or cross_fade value.', 400
+      response = {'error': 'Invalid rgb_value, ramp_time or cross_fade value.'}
+      return json.dumps(response), 400
     except AssertionError as assertion_error:
-      return f'Cannot perform action.', 409
+      response = {'error': 'Cannot perform action.'}
+      return json.dumps(response), 409
 
 
 def byte_string_to_lens_id(byte_string):
