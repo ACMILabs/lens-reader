@@ -2,6 +2,7 @@
 
 """ Kiosk IV tap reader running on a Raspberry Pi """
 
+import json
 import math
 import os
 import re
@@ -14,6 +15,8 @@ from copy import deepcopy
 
 import requests
 import sentry_sdk
+from flask import Flask, request
+
 from utils import IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ, envtotuple, log
 
 try:
@@ -62,6 +65,9 @@ else:
 # Setup Sentry
 sentry_sdk.init(SENTRY_ID)
 
+app = Flask(__name__)
+tap_manager = None
+
 
 class LEDControllerThread(Thread):
   """
@@ -85,6 +91,7 @@ class LEDControllerThread(Thread):
     self.ramp_target = 0.0
     self.ramp_duration = None
     self.ramp_time0 = None
+    self.blocked_by = None
 
     if board and dotstar:
       self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, LEDS_IN_STRING, brightness=LEDS_BRIGHTNESS)
@@ -175,6 +182,12 @@ class LEDControllerThread(Thread):
     sleep(LEDS_SIGNAL_TIMES[1])
     self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
+  def toggle_lights(self, rgb_value, ramp_time, cross_fade):
+    self.ramp_target_colour = rgb_value
+    self.ramp_target = cross_fade
+    self.ramp_duration = ramp_time
+    self.ramp_time0 = time()
+
 
 class TapManager:
   """
@@ -229,13 +242,19 @@ class TapManager:
 
   def tap_on(self):
     log(" Tap On: ", self.last_id)
-    self.leds.success_on()
+    # turn leds on only if not being used
+    if not self.leds.blocked_by:
+      self.leds.blocked_by = 'tap'
+      self.leds.success_on()
     self.send_tap(self.last_id)
 
   def tap_off(self):
     log("Tap Off: ", self.last_id)
-    self.last_id = None
-    self.leds.success_off()
+    # turn leds off only if triggered by a tap
+    if self.leds.blocked_by == 'tap':
+      self.last_id = None
+      self.leds.success_off()
+      self.leds.blocked_by = None
 
   def _reset_tap_off_timer(self):
     # reset the tap-off timer for this ID
@@ -268,6 +287,60 @@ class TapManager:
       self.tap_on()
     self._reset_tap_off_timer()
 
+  def process_taps(self):
+    """
+    Read the lines from the C interface and processes taps.
+    """
+    shell = True
+    popen = subprocess.Popen(CMD, cwd=FOLDER, shell=shell, stdout=subprocess.PIPE)
+    BYTE_STRING_RE = r'([0-9a-fA-F]{2}:?)+'
+
+    while True:
+      # wait for the next line from the C interface (if there are no NFCs there will be no lines)
+      line = popen.stdout.readline().decode("utf-8")
+
+      # see if it is a tag read
+      if re.match(BYTE_STRING_RE, line):
+        # We have an ID.
+        self.read_line(line)
+
+
+@app.route('/api/lights/', methods=['POST'])
+def toggle_lights():
+    """
+    Endpoint to turn on the lights with a given RGB value and for a given time.
+
+    :param rgb_value: A list of three integers (0-255) making up an RGB combination.
+    :type rgb_value: list
+    :param ramp_time: A float that indicates the ramp on/off time in seconds.
+    :type ramp_time: float
+    :param cross_fade: A float from 0 to 1 that indicates the ramp target value.
+    :type cross_fade: float
+    :return: Success or error message
+
+    """
+    request_data = dict(request.get_json())
+    try:
+      rgb_value = request_data['rgb_value']
+      ramp_time = float(request_data['ramp_time'])
+      cross_fade = float(request_data['cross_fade'])
+
+      # ensure we are turning off a previous remote toggle 
+      # or turning on if nothing is using the leds
+      assert (tap_manager.leds.blocked_by == 'remote' and cross_fade == 0.0) or \
+        (not tap_manager.leds.blocked_by and cross_fade > 0.0)
+
+      tap_manager.leds.blocked_by = 'remote' if cross_fade > 0.0 else None
+      tap_manager.leds.toggle_lights(rgb_value, ramp_time, cross_fade)
+      return 'Leds toggled successfully.', 200
+
+    except (SyntaxError, TypeError, ValueError):
+      response = {'error': 'Invalid rgb_value, ramp_time or cross_fade value.'}
+      return json.dumps(response), 400
+    except AssertionError as assertion_error:
+      response = {'error': 'Cannot perform action.'}
+      return json.dumps(response), 409
+
 
 def byte_string_to_lens_id(byte_string):
   """
@@ -283,20 +356,14 @@ def main():
   """Launcher."""
   print("XOS Lens Reader (KioskIV)")
 
-  shell = True
-  popen = subprocess.Popen(CMD, cwd=FOLDER, shell=shell, stdout=subprocess.PIPE)
-
+  global tap_manager
   tap_manager = TapManager()
-  BYTE_STRING_RE = r'([0-9a-fA-F]{2}:?)+'
 
-  while True:
-    # wait for the next line from the C interface (if there are no NFCs there will be no lines)
-    line = popen.stdout.readline().decode("utf-8")
+  # Start thread to read and process taps.
+  Thread(target=tap_manager.process_taps).start()
 
-    # see if it is a tag read
-    if re.match(BYTE_STRING_RE, line):
-      # We have an ID.
-      tap_manager.read_line(line)
+  # Start a Flask server to expose /api/lights/ endpoint
+  app.run(host='0.0.0.0', port=8082)
 
 if __name__ == "__main__":
   main()
