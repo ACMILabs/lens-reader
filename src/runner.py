@@ -7,7 +7,6 @@ import os
 import re
 import subprocess
 import sys
-from ast import literal_eval
 from datetime import datetime
 from threading import Timer, Thread, Event
 from time import sleep, time
@@ -310,8 +309,8 @@ def toggle_lights():
     """
     Endpoint to turn on the lights with a given RGB value and for a given time.
 
-    :param rgb_value: A tuple with three integers (0-255) making up an RGB combination.
-    :type rgb_value: tuple
+    :param rgb_value: A list of three integers (0-255) making up an RGB combination.
+    :type rgb_value: list
     :param ramp_time: A float that indicates the ramp on/off time in seconds.
     :type ramp_time: float
     :param cross_fade: A float from 0 to 1 that indicates the ramp target value.
@@ -321,7 +320,7 @@ def toggle_lights():
     """
     request_data = dict(request.get_json())
     try:
-      rgb_value = literal_eval(request_data['rgb_value'])
+      rgb_value = request_data['rgb_value']
       ramp_time = float(request_data['ramp_time'])
       cross_fade = float(request_data['cross_fade'])
 
@@ -334,8 +333,8 @@ def toggle_lights():
       tap_manager.leds.toggle_lights(rgb_value, ramp_time, cross_fade)
       return 'Leds toggled successfully.', 200
 
-    except (SyntaxError, TypeError):
-      return 'Invalid rgb_value or ramp_time.', 400
+    except (SyntaxError, TypeError, ValueError):
+      return 'Invalid rgb_value, ramp_time or cross_fade value.', 400
     except AssertionError as assertion_error:
       return f'Cannot perform action.', 409
 
