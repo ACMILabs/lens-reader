@@ -91,7 +91,7 @@ class LEDControllerThread(Thread):
     self.ramp_target = 0.0
     self.ramp_duration = None
     self.ramp_time0 = None
-    self.on = False
+    self.blocked_by = None
 
     if board and dotstar:
       self.LEDS = dotstar.DotStar(board.SCK, board.MOSI, LEDS_IN_STRING, brightness=LEDS_BRIGHTNESS)
@@ -242,15 +242,19 @@ class TapManager:
 
   def tap_on(self):
     log(" Tap On: ", self.last_id)
-    self.leds.on = True
-    self.leds.success_on()
+    # turn leds on only if not being used
+    if not self.leds.blocked_by:
+      self.leds.blocked_by = 'tap'
+      self.leds.success_on()
     self.send_tap(self.last_id)
 
   def tap_off(self):
     log("Tap Off: ", self.last_id)
-    self.last_id = None
-    self.leds.success_off()
-    self.leds.on = False
+    # turn leds off only if triggered by a tap
+    if self.leds.blocked_by == 'tap':
+      self.last_id = None
+      self.leds.success_off()
+      self.leds.blocked_by = None
 
   def _reset_tap_off_timer(self):
     # reset the tap-off timer for this ID
@@ -296,7 +300,7 @@ class TapManager:
       line = popen.stdout.readline().decode("utf-8")
 
       # see if it is a tag read
-      if re.match(BYTE_STRING_RE, line) and not self.leds.on:
+      if re.match(BYTE_STRING_RE, line):
         # We have an ID.
         self.read_line(line)
 
@@ -321,16 +325,19 @@ def toggle_lights():
       ramp_time = float(request_data['ramp_time'])
       cross_fade = float(request_data['cross_fade'])
 
-      assert (tap_manager.leds.on and cross_fade == 0.0) or (not tap_manager.leds.on and cross_fade > 0.0)
+      # ensure we are turning off a previous remote toggle 
+      # or turning on if nothing is using the leds
+      assert (tap_manager.leds.blocked_by == 'remote' and cross_fade == 0.0) or \
+        (not tap_manager.leds.blocked_by and cross_fade > 0.0)
 
-      tap_manager.leds.on = cross_fade > 0.0
+      tap_manager.leds.blocked_by = 'remote' if cross_fade > 0.0 else None
       tap_manager.leds.toggle_lights(rgb_value, ramp_time, cross_fade)
       return 'Leds toggled successfully.', 200
 
     except (SyntaxError, TypeError):
       return 'Invalid rgb_value or ramp_time.', 400
     except AssertionError as assertion_error:
-      return f'Cannot perform action, leds are currently {"on" if tap_manager.leds.on else "off"}', 409
+      return f'Cannot perform action.', 409
 
 
 def byte_string_to_lens_id(byte_string):
