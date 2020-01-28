@@ -15,7 +15,8 @@ AUTH_TOKEN=(secret)                 # the token to use for XOS API communication
 BLINKA_FORCEBOARD=RASPBERRY_PI_4B   # Configuration for the Blinka lights
 BLINKA_FORCECHIP=BCM2XXX
 LABEL=1                             # The label ID of this reader
-TARGET_API_ENDPOINT=https://xos.acmi.net.au/api/ # The URL to use for API messages
+# The URL to use for API messages. Maker Moments intercept the messages and so use a different URL.
+TARGET_API_ENDPOINT=https://xos.acmi.net.au/api/
 
 DEBUG=false             # set to 'true' to use the DEBUG build of the idtech C code
 SENTRY_ID=(secret)      # the ID to use for posting exceptions to Sentry
