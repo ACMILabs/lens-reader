@@ -79,3 +79,37 @@ Ensure `make` is installed; either with `xcode-select --install` on OS X, or `ap
 You can see the status of deployed devices on [the Balena dashboard](https://dashboard.balena-cloud.com/devices/dc0627e5962af329de637af277da9b3a/summary).
 
 Note that the Docker image is hard-coded to use a 32-bit Raspberry Pi Python image, which runs inside the 64-bit BalenaOS. This is because if we don't then `libIDTechSDK.so` file is ignored as 'not compatible' during compilation and execution.
+
+# Lights API
+
+The lights API allows controlling the lens reader's LEDs. This API is exposed by the device so the full endpoint URL would be `http://<device-ip>:8082/api/lights/`.
+
+## POST `/api/lights/`
+
+This endpoint allows toggling the lights on/off with an RGB colour, a ramp time and a fade percentage.
+
+### Headers
+```
+Authorization: Token <xos-token>
+Content-Type: application/json
+```
+
+### Body
+```
+{
+    "rgb_value": [int, int, int],
+    "ramp_time": float,
+    "cross_fade": float
+}
+```
+- `rgb_value` is a list of three values representing an RGB colour. Each value in the list should be 0-255.
+- `ramp_time` is a float that represents the time in seconds that the LEDs take to go from idle to the specified colour.
+- `cross_fade` is a float 0-1 that represents the fade percentage of the specified colour.
+
+### Response
+
+200 on success
+
+400 on invalid values in the body
+
+409 if trying to turn on while LEDs are already on or trying to turn off while LEDs are off.
