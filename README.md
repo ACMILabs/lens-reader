@@ -4,7 +4,7 @@ The Kiosk IV tap reader runs on a Raspberry Pi 4, with an IDTech Kiosk IV reader
 
 The file `runner.py` runs the `idtech` C app in the background, and processes the output of the app. The C app simply continuously prints discovered NFC tag reads to `stdout`.
 
-The Python script processes the output and makes 'tap' calls to XOS, and controls the lights attached to the RPi.
+The Python script processes the output and POSTs 'tap' API calls to `TARGET_API_ENDPOINT`, and controls the lights attached to the RPi.
 
 # Configuration values
 
@@ -32,6 +32,34 @@ LEDS_SUCCESS_COLOUR=255,238,202     # RGB Bright warm white
 LEDS_FAILED_COLOUR=137,0,34         # RGB Medium red
 LEDS_SIGNAL_TIMES=0.3,0.5,0.6       # Seconds to take for success/failed colour fade in, auto-hold (if needed), fade out.
 ```
+
+# Tap API calls
+The following is the kind of message POSTed by the Lens Reader hardware to `TARGET_API_ENDPOINT`.
+```
+       {
+            "atr": "a5292afe",
+            "uid": "98cf3848549405",
+            "experience_id": null,
+            "tap_datetime": "2020-01-08T16:47:39.700188+11:00",
+            "maker_moment": null,
+            "label": 1,
+            "data": {
+                "lens_reader": {
+                    "reader_ip": "172.17.0.3",
+                    "mac_address": "24:2A:C1:10:00:3",
+                    "reader_name": "nfc-3",
+                    "reader_model": null
+                }
+            }
+        }
+```
+
+## For maker moments
+
+Each maker moment will provide its own `TARGET_API_ENDPOINT` URL to receive tap messages (with null `maker_moment` and `experience_id` values as above) at `<TARGET_API_ENDPOINT>/taps/`. The maker moment software will populate `maker_moment` and `experience_id` values and POST the resulting tap to the XOS taps API endpoint at https://xos.acmi.net.au/api/taps/.
+
+* `maker_moment` is a constant integer which determines the maker moment that was tapped. XOS team can advise this value for each maker moment.
+* `experience_id` is a unique string that identifies the experience which was just saved. The ID can be used at retrieval time to e.g. locate specific media and metadata on cloud storage. In other words, all media and metadata should be identifiable from constants and the `experience_id`.
 
 # Compiling the `idtech` application (in C)
 
