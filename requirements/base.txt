@@ -6,3 +6,6 @@ sentry-sdk
 RPi.GPIO
 git+https://github.com/ACMILabs/Adafruit_Blinka.git
 adafruit-circuitpython-dotstar
+
+# Pin platform detect to avoid issue #39
+Adafruit-PlatformDetect==1.3.4
