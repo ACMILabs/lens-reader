@@ -88,9 +88,12 @@ The lights API allows controlling the lens reader's LEDs. This API is exposed by
 
 This endpoint allows toggling the lights on/off with an RGB colour, a ramp time and a fade percentage.
 
+To turn the lights on, set the `cross_fade` value to a float greater than 0, up to 1.
+
+To turn the lights off, set the `cross_fade` value to 0.
+
 ### Headers
 ```
-Authorization: Token <xos-token>
 Content-Type: application/json
 ```
 
@@ -113,3 +116,25 @@ Content-Type: application/json
 400 on invalid values in the body
 
 409 if trying to turn on while LEDs are already on or trying to turn off while LEDs are off.
+
+### Example
+
+Turn the LEDs on:
+
+```
+curl -X POST -H "Content-Type: application/json" -d '{
+    "rgb_value": [4,99,7],
+    "ramp_time": 2.5,
+    "cross_fade": 1.0
+}' "http://172.16.80.225:8082/api/lights/"
+```
+
+Turn the LEDs off:
+
+```
+curl -X POST -H "Content-Type: application/json" -d '{
+    "rgb_value": [4,99,7],
+    "ramp_time": 2.5,
+    "cross_fade": 0.0
+}' "http://172.16.80.225:8082/api/lights/"
+```
