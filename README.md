@@ -107,7 +107,7 @@ Content-Type: application/json
 ```
 - `rgb_value` is a list of three values representing an RGB colour. Each value in the list should be 0-255.
 - `ramp_time` is a float that represents the time in seconds that the LEDs take to go from idle to the specified colour.
-- `cross_fade` is a float 0-1 that represents the fade percentage of the specified colour.
+- `cross_fade` is a float 0-1 that represents the fade percentage of the specified colour. 0.0 = No effect; 1.0 = Total override.
 
 ### Response
 
@@ -119,7 +119,7 @@ Content-Type: application/json
 
 ### Example
 
-Turn the LEDs on:
+Override the colour of the LEDs, and set them to a specific colour:
 
 ```
 curl -X POST -H "Content-Type: application/json" -d '{
@@ -129,7 +129,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
 }' "http://172.16.80.225:8082/api/lights/"
 ```
 
-Turn the LEDs off:
+Return the LEDs to standard lens reader breathe animation.
 
 ```
 curl -X POST -H "Content-Type: application/json" -d '{
