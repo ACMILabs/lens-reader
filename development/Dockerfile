@@ -14,10 +14,10 @@ COPY ./requirements/test.txt /code/test.txt
 RUN pip install -Ur /code/test.txt
 
 COPY . /code/
-WORKDIR /code/src/
+WORKDIR /code/
 
 # Enable udevd so that plugged dynamic hardware devices show up in our container.
 ENV UDEV=1
 
 # main.py will run when container starts up on the device
-CMD ["python","runner.py"]
+CMD ["python", "-m", "src.runner"]

@@ -14,10 +14,10 @@ import requests
 import sentry_sdk
 from flask import Flask, request
 
-from utils import IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ, envtotuple, log
+from src.utils import IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ, envtotuple, log
 
 try:
-    import adafruit_dotstar as dotstar
+    import src.adafruit_dotstar as dotstar
 
     dotstar_imported = True  # pylint: disable=invalid-name
 except ModuleNotFoundError:  # this doesn't compile install
@@ -26,9 +26,9 @@ except ModuleNotFoundError:  # this doesn't compile install
 try:
     import board
 
-    board_imported = None  # pylint: disable=invalid-name
+    board_imported = True  # pylint: disable=invalid-name
 except (NotImplementedError, ModuleNotFoundError):
-    board_imported = None  # pylint: disable=invalid-name
+    board_imported = False  # pylint: disable=invalid-name
 
 
 # Constants defined in environment. Changes here should be documented in README.
@@ -58,9 +58,9 @@ LEDS_SIGNAL_TIMES = envtotuple('LEDS_SIGNAL_TIMES', '0.3,0.5,0.6')
 LEDS_IN_STRING = int(os.getenv('LEDS_IN_STRING', '12'))  # Number of LEDs to light up
 
 if IS_OSX:
-    FOLDER = '../bin/mac/'
+    FOLDER = './bin/mac/'
 else:
-    FOLDER = '../bin/arm_32/'
+    FOLDER = './bin/arm_32/'
 
 if DEBUG:
     CMD = ['./idtech_debug']  # this will run silently
@@ -112,7 +112,7 @@ class LEDControllerThread(Thread):
         if self.leds:
             self.leds.fill((*colour, LEDS_BRIGHTNESS))
         else:
-            print("Setting LEDs to %s" % list(colour))
+            print('Setting LEDs to %s' % list(colour))
 
     def ramp_on(self, target_colour, duration_s):
         """Set values to produce a fade to the ramp colour"""
@@ -173,20 +173,23 @@ class LEDControllerThread(Thread):
         # we're not ramping
         return self.ramp_target
 
+    def update_leds(self, start_time):
+        time_ = time() - start_time
+        self._calculate_breathe_colour(time_)
+        ramp_proportion = self._calculate_ramp_proportion()
+
+        # mix the breathe and ramp_on colours according to the current ramp_on amount
+        for i in range(3):
+            self.current_colour[i] = ramp_proportion * self.ramp_target_colour[i] + \
+                (1.0 - ramp_proportion) * self.breathe_colour[i]
+
+        # output the colours
+        self.set_leds(self.current_colour)
+
     def run(self):
         start_time = time()
         while True:
-            time_ = time() - start_time
-            self._calculate_breathe_colour(time_)
-            ramp_proportion = self._calculate_ramp_proportion()
-
-            # mix the breathe and ramp_on colours according to the current ramp_on amount
-            for i in range(3):
-                self.current_colour[i] = ramp_proportion * self.ramp_target_colour[i] + \
-                    (1.0 - ramp_proportion) * self.breathe_colour[i]
-
-            # output the colours
-            self.set_leds(self.current_colour)
+            self.update_leds(start_time)
             sleep(1.0 / 60)
 
     def success_on(self):
