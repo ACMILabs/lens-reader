@@ -16,33 +16,33 @@ TZ = pytz.timezone(TIMEZONE)
 
 def log(*args):
     print("%s: " % datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-      *args
+        *args
     )
 
 # Get mac address
 def get_mac_address():
-  mac_num = hex(uuid.getnode()).replace('0x', '').upper()
-  mac = ':'.join(mac_num[i : i + 2] for i in range(0, 11, 2))
-  return mac
+    mac_num = hex(uuid.getnode()).replace('0x', '').upper()
+    mac = ':'.join(mac_num[i : i + 2] for i in range(0, 11, 2))
+    return mac
 
 MAC_ADDRESS = get_mac_address()
 
 # Get IP address
 def get_ip_address():
-  s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-  s.connect((DNS_SERVER, DNS_PORT))
-  ip_address = s.getsockname()[0]
-  s.close()
-  return ip_address
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect((DNS_SERVER, DNS_PORT))
+    ip_address = s.getsockname()[0]
+    s.close()
+    return ip_address
 
 IP_ADDRESS = get_ip_address()
 
 def envtotuple(env_name, default=()):
-  """
-  allow environment values of "1,2,3" to be parsed into (1,2,3)
-  """
-  v = os.getenv(env_name)
-  if not v:
-    v = default
-  return tuple([float(x.strip()) for x in v.split(",")])
+    """
+    allow environment values of "1,2,3" to be parsed into (1,2,3)
+    """
+    v = os.getenv(env_name)
+    if not v:
+        v = default
+    return tuple([float(x.strip()) for x in v.split(",")])
 

@@ -1,0 +1,7 @@
+-r base.txt
+
+flake8
+isort
+pylint
+pytest
+pytest-flask

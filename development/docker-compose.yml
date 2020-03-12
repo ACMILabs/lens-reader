@@ -1,0 +1,16 @@
+version: "3"
+
+services:
+  lensreader:
+    build:
+      context: "../"
+      dockerfile: development/Dockerfile
+      args:
+        IS_LOCAL_ENV: "true"
+    hostname: lensreader
+    container_name: lensreader
+    # env_file: ../dev.env
+    volumes:
+      - ../:/code
+    ports:
+     - 8081:8081
