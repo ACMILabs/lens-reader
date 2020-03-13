@@ -1,9 +1,13 @@
 # So instead we're forcing a 32-bit image.
-FROM balenalib/raspberrypi3-python:3.7.4-buster-run
+FROM python:3.7.2
 
 # use `install_packages` if you need to install dependencies,
 # for instance if you need git, just uncomment the line below.
-RUN install_packages g++ git curl libusb-1.0-0-dev build-essential
+COPY ./c_project/lib/libIDTechSDK.so /usr/local/lib/
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends \
+        git g++ curl libusb-1.0-0-dev build-essential
 RUN ldconfig
 
 ENV PYTHONUNBUFFERED 1
