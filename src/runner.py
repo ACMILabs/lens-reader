@@ -108,6 +108,10 @@ class LEDControllerThread(Thread):
             self.leds = None
 
     def set_leds(self, colour):
+        """
+        If appropriate libraries are installed and working, give the LEDs a specified colour.
+        Else print the colour they would get (for development).
+        """
         colour = [min(max(int(i), 0), 255) for i in colour]
         if self.leds:
             self.leds.fill((*colour, LEDS_BRIGHTNESS))
@@ -174,6 +178,10 @@ class LEDControllerThread(Thread):
         return self.ramp_target
 
     def update_leds(self, start_time):
+        """
+        Updates the LEDs with a colour proportional to a target
+        colour or colours in the breathe animation.
+        """
         time_ = time() - start_time
         self._calculate_breathe_colour(time_)
         ramp_proportion = self._calculate_ramp_proportion()
@@ -187,18 +195,30 @@ class LEDControllerThread(Thread):
         self.set_leds(self.current_colour)
 
     def run(self):
+        """
+        Infinite loop to constantly update LEDs.
+        """
         start_time = time()
         while True:
             self.update_leds(start_time)
             sleep(1.0 / 60)
 
     def success_on(self):
+        """
+        Ramp on animation in a sucessful tap.
+        """
         self.ramp_on(LEDS_SUCCESS_COLOUR, LEDS_SIGNAL_TIMES[0])
 
     def success_off(self):
+        """
+        Ramp off animation in a sucessful tap.
+        """
         self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
     def failed(self):
+        """
+        Triggers a predefined set of colours to indicate a fail state in a tap.
+        """
         self.ramp_on(LEDS_FAILED_COLOUR, LEDS_SIGNAL_TIMES[0])
         sleep(LEDS_SIGNAL_TIMES[1])
         self.ramp_off(LEDS_SIGNAL_TIMES[-1])
