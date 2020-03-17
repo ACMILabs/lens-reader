@@ -38,4 +38,8 @@ steps:
       - cd ${{CF_REPO_NAME}}
       - git checkout ${{CF_BRANCH}}
       - balena login --token $BALENA_TOKEN
-      - balena push e__tap-reader-pi-4
+      - balena push s__tap-reader-pi-4
+    when:
+      branch:
+        only:
+          - master
