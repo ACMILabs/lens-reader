@@ -41,7 +41,7 @@ def get_ip_address():
 IP_ADDRESS = get_ip_address()
 
 
-def envtotuple(env_name, default=()):
+def env_to_tuple(env_name, default=()):
     """
     allow environment values of "1,2,3" to be parsed into (1,2,3)
     """

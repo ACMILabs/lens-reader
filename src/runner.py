@@ -14,7 +14,7 @@ import requests
 import sentry_sdk
 from flask import Flask, request
 
-from src.utils import IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ, envtotuple, log
+from src.utils import IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ, env_to_tuple, log
 
 try:
     import src.adafruit_dotstar as dotstar
@@ -43,12 +43,12 @@ TAP_OFF_TIMEOUT = float(os.getenv('TAP_OFF_TIMEOUT', '0.5'))  # seconds
 LEDS_BRIGHTNESS = float(os.getenv('LEDS_BRIGHTNESS', '1.0'))
 # seconds to cycle between IN and OUT colours.
 LEDS_BREATHE_TIME = float(os.getenv('LEDS_BREATHE_TIME', '5.0'))
-LEDS_BREATHE_COLOUR_OUT = envtotuple('LEDS_BREATHE_COLOUR_OUT', '36,26,10')  # Dim warm white
-LEDS_BREATHE_COLOUR_IN = envtotuple('LEDS_BREATHE_COLOUR_IN', '95,70,26')  # Medium warm white
-LEDS_SUCCESS_COLOUR = envtotuple('LEDS_SUCCESS_COLOUR', '255,238,202')  # Bright warm white
-LEDS_FAILED_COLOUR = envtotuple('LEDS_FAILED_COLOUR', '137,0,34')  # Medium red
+LEDS_BREATHE_COLOUR_OUT = env_to_tuple('LEDS_BREATHE_COLOUR_OUT', '36,26,10')  # Dim warm white
+LEDS_BREATHE_COLOUR_IN = env_to_tuple('LEDS_BREATHE_COLOUR_IN', '95,70,26')  # Medium warm white
+LEDS_SUCCESS_COLOUR = env_to_tuple('LEDS_SUCCESS_COLOUR', '255,238,202')  # Bright warm white
+LEDS_FAILED_COLOUR = env_to_tuple('LEDS_FAILED_COLOUR', '137,0,34')  # Medium red
 # up ramp_on, auto-hold (if needed), down ramp_on
-LEDS_SIGNAL_TIMES = envtotuple('LEDS_SIGNAL_TIMES', '0.3,0.5,0.6')
+LEDS_SIGNAL_TIMES = env_to_tuple('LEDS_SIGNAL_TIMES', '0.3,0.5,0.6')
 LEDS_IN_STRING = int(os.getenv('LEDS_IN_STRING', '12'))  # Number of LEDs to light up
 
 if IS_OSX:
