@@ -18,23 +18,17 @@ from src.utils import IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ, envtotuple, log
 
 try:
     import src.adafruit_dotstar as dotstar
-
-    dotstar_imported = True  # pylint: disable=invalid-name
-except ModuleNotFoundError:  # this doesn't compile install
-    dotstar_imported = False  # pylint: disable=invalid-name
-
-try:
     import board
 
-    board_imported = True  # pylint: disable=invalid-name
-except (NotImplementedError, ModuleNotFoundError):
-    board_imported = False  # pylint: disable=invalid-name
+except (NotImplementedError, ModuleNotFoundError):  # this doesn't compile install
+    pass
 
 
 # Constants defined in environment. Changes here should be documented in README.
 
 # whether to use the DEBUG version of the idtech C code
 DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'
+IS_LOCAL_ENV = os.getenv('IS_LOCAL_ENV', 'false') == 'true'
 TARGET_API_ENDPOINT = os.getenv('TARGET_API_ENDPOINT', 'http://localhost:8000/api/')
 TARGET_TAPS_ENDPOINT = os.getenv('TARGET_TAPS_ENDPOINT', f'{TARGET_API_ENDPOINT}taps/')
 AUTH_TOKEN = os.getenv('AUTH_TOKEN', '')
@@ -97,7 +91,7 @@ class LEDControllerThread(Thread):
         self.ramp_time0 = None
         self.blocked_by = None
 
-        if board_imported and dotstar_imported:
+        if not IS_LOCAL_ENV:
             self.leds = dotstar.DotStar(
                 board.SCK,
                 board.MOSI,

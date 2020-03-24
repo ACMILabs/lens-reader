@@ -5,11 +5,10 @@ services:
     build:
       context: "../"
       dockerfile: development/Dockerfile
-      args:
-        IS_LOCAL_ENV: "true"
+    environment:
+      - IS_LOCAL_ENV=true
     hostname: lensreader
     container_name: lensreader
-    # env_file: ../dev.env
     volumes:
       - ../:/code
     ports:
