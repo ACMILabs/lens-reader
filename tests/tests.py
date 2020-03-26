@@ -1,6 +1,9 @@
 from time import sleep, time
+from unittest.mock import MagicMock, patch
 
-from src.runner import LEDControllerThread
+from requests.exceptions import ConnectionError as RequestsConnectionError
+
+from src.runner import LEDControllerThread, TapManager
 
 
 def test_leds_ramp_on():
@@ -54,3 +57,64 @@ def test_leds_ramp_off():
     sleep(ramp_duration)
     leds_controller.update_leds(start_time)
     assert leds_controller.current_colour == leds_controller.breathe_colour
+
+
+def test_tap_on_queues_taps():
+    """
+    Test that a tap_on enqueues a tap
+    """
+    tap_manager = TapManager()
+    assert tap_manager.queue.empty()
+
+    # add a tap to the queue
+    tap_manager.last_id = '123456789'
+    tap_manager.tap_on()
+    assert tap_manager.queue.qsize() == 1
+
+    _, tap = tap_manager.queue.get()
+    assert tap['lens']['uid'] == '123456789'
+
+
+@patch('requests.post', side_effect=MagicMock())
+def test_send_tap_or_requeue(xos_request):
+    """
+    Test send_tap_or_requeue takes taps from the queue and makes requests to XOS
+    """
+    tap_manager = TapManager()
+    assert tap_manager.queue.empty()
+
+    # add two taps to the queue
+    tap_manager.last_id = '123456789'
+    tap_manager.tap_on()
+    tap_manager.last_id = '000000000'
+    tap_manager.tap_on()
+    assert tap_manager.queue.qsize() == 2
+
+    # send the taps
+    tap_manager.send_tap_or_requeue()
+    tap_manager.send_tap_or_requeue()
+
+    assert xos_request.call_count == 2
+    assert tap_manager.queue.empty()
+
+
+@patch('requests.post', MagicMock(side_effect=RequestsConnectionError()))
+def test_send_tap_or_requeue_no_network():
+    """
+    Test send_tap_or_requeue enqueues tap again on network failure
+    """
+    tap_manager = TapManager()
+    assert tap_manager.queue.empty()
+
+    # add a tap to the queue
+    tap_manager.last_id = '123456789'
+    tap_manager.tap_on()
+    assert tap_manager.queue.qsize() == 1
+
+    # try to send the tap
+    tap_manager.send_tap_or_requeue()
+
+    # check that the tap was put back in the queue
+    assert tap_manager.queue.qsize() == 1
+    _, tap = tap_manager.queue.get()
+    assert tap['lens']['uid'] == '123456789'
