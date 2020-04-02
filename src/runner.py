@@ -246,6 +246,7 @@ class TapManager:
         self.tap_off_timer = None
         self.leds = LEDControllerThread()
         self.queue = PriorityQueue()
+        self.post_to_sentry = True
 
     def create_tap(self, lens_id):
         """
@@ -276,6 +277,7 @@ class TapManager:
         headers = {'Authorization': 'Token ' + AUTH_TOKEN}
         try:
             response = requests.post(url=TARGET_TAPS_ENDPOINT, json=tap, headers=headers, timeout=5)
+            self.post_to_sentry = True
             if response.status_code == 201:
                 log(response.text)
                 return 0
@@ -293,7 +295,9 @@ class TapManager:
             log('Failed to post tap message to %s: %s\n%s' % (
                 TARGET_TAPS_ENDPOINT, tap, str(connection_error)
             ))
-            sentry_sdk.capture_exception(connection_error)
+            if self.post_to_sentry:
+                sentry_sdk.capture_exception(connection_error)
+                self.post_to_sentry = False
             self.queue.put((tap['tap_datetime'], tap))
             log('Waiting for %s seconds to retry' % TAP_SEND_RETRY_SECS)
             sleep(TAP_SEND_RETRY_SECS)
