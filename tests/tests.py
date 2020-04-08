@@ -1,7 +1,7 @@
 from time import sleep, time
 from unittest.mock import MagicMock, patch
 
-from requests.exceptions import ConnectionError as RequestsConnectionError
+import requests
 
 import src.runner
 from src.runner import LEDControllerThread, TapManager
@@ -101,7 +101,7 @@ def test_send_tap_or_requeue(xos_request):
     assert tap_manager.queue.empty()
 
 
-@patch('requests.post', MagicMock(side_effect=RequestsConnectionError()))
+@patch('requests.post', MagicMock(side_effect=requests.exceptions.ConnectionError()))
 def test_send_tap_or_requeue_no_network():
     """
     Test send_tap_or_requeue enqueues tap again on network failure
@@ -123,7 +123,7 @@ def test_send_tap_or_requeue_no_network():
     assert tap['lens']['uid'] == '123456789'
 
 
-@patch('requests.post', MagicMock(side_effect=RequestsConnectionError()))
+@patch('requests.post', MagicMock(side_effect=requests.exceptions.ConnectionError()))
 @patch('sentry_sdk.capture_exception', side_effect=MagicMock())
 def test_send_tap_or_requeue_no_network_does_not_spam_sentry(capture_exception):
     """

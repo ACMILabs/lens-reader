@@ -14,8 +14,6 @@ from time import sleep, time
 import requests
 import sentry_sdk
 from flask import Flask, request
-from requests.exceptions import ConnectionError as RequestsConnectionError
-from requests.exceptions import Timeout
 
 from src.utils import IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ, env_to_tuple, log
 
@@ -291,7 +289,10 @@ class TapManager:
             sentry_sdk.capture_message(response.text)
             return 1
 
-        except (RequestsConnectionError, Timeout) as connection_error:
+        except (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout
+        ) as connection_error:
             log('Failed to post tap message to %s: %s\n%s' % (
                 TARGET_TAPS_ENDPOINT, tap, str(connection_error)
             ))
