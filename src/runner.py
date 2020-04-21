@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 from datetime import datetime
+from queue import PriorityQueue
 from threading import Thread, Timer
 from time import sleep, time
 
@@ -50,6 +51,8 @@ LEDS_FAILED_COLOUR = env_to_tuple('LEDS_FAILED_COLOUR', '137,0,34')  # Medium re
 # up ramp_on, auto-hold (if needed), down ramp_on
 LEDS_SIGNAL_TIMES = env_to_tuple('LEDS_SIGNAL_TIMES', '0.3,0.5,0.6')
 LEDS_IN_STRING = int(os.getenv('LEDS_IN_STRING', '12'))  # Number of LEDs to light up
+
+TAP_SEND_RETRY_SECS = int(os.getenv('TAP_SEND_RETRY_SECS', '5'))
 
 if IS_OSX:
     FOLDER = './bin/mac/'
@@ -240,12 +243,14 @@ class TapManager:
         self.last_id_time = time()
         self.tap_off_timer = None
         self.leds = LEDControllerThread()
+        self.queue = PriorityQueue()
+        self.post_to_sentry = True
 
-    def send_tap(self, lens_id):
+    def create_tap(self, lens_id):
         """
-        Refer to docs.python-requests.org for implementation examples
+        Create a tap from a lens ID
         """
-        params = {
+        return {
             'lens': {
                 'uid': lens_id
             },
@@ -260,9 +265,17 @@ class TapManager:
                 }
             }
         }
+
+    def send_tap_or_requeue(self):
+        """
+        Get the topmost tap from the queue and try to send it.
+        If XOS is unreachable, put the tap back in the queue.
+        """
+        _, tap = self.queue.get()
         headers = {'Authorization': 'Token ' + AUTH_TOKEN}
         try:
-            response = requests.post(url=TARGET_TAPS_ENDPOINT, json=params, headers=headers)
+            response = requests.post(url=TARGET_TAPS_ENDPOINT, json=tap, headers=headers, timeout=5)
+            self.post_to_sentry = True
             if response.status_code == 201:
                 log(response.text)
                 return 0
@@ -276,13 +289,27 @@ class TapManager:
             sentry_sdk.capture_message(response.text)
             return 1
 
-        except requests.exceptions.ConnectionError as connection_error:
+        except (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout
+        ) as connection_error:
             log('Failed to post tap message to %s: %s\n%s' % (
-                TARGET_TAPS_ENDPOINT, params, str(connection_error)
+                TARGET_TAPS_ENDPOINT, tap, str(connection_error)
             ))
-            sentry_sdk.capture_exception(connection_error)
-            self.leds.failed()
+            if self.post_to_sentry:
+                sentry_sdk.capture_exception(connection_error)
+                self.post_to_sentry = False
+            self.queue.put((tap['tap_datetime'], tap))
+            log('Waiting for %s seconds to retry' % TAP_SEND_RETRY_SECS)
+            sleep(TAP_SEND_RETRY_SECS)
             return 1
+
+    def send_taps(self):
+        """
+        Continuously try to send the taps
+        """
+        while True:
+            self.send_tap_or_requeue()
 
     def tap_on(self):
         log(' Tap On: ', self.last_id)
@@ -290,7 +317,8 @@ class TapManager:
         if not self.leds.blocked_by:
             self.leds.blocked_by = 'tap'
             self.leds.success_on()
-        self.send_tap(self.last_id)
+        tap = self.create_tap(self.last_id)
+        self.queue.put((tap['tap_datetime'], tap))
 
     def tap_off(self):
         log("Tap Off: ", self.last_id)
@@ -407,8 +435,11 @@ def main():
 
     tap_manager.leds.start()
 
-    # Start thread to read and process taps.
+    # Start thread to read and queue taps.
     Thread(target=tap_manager.process_taps).start()
+
+    # Start thread to send taps.
+    Thread(target=tap_manager.send_taps).start()
 
     # Start a Flask server to expose /api/lights/ endpoint
     app.run(host='0.0.0.0', port=8082)
