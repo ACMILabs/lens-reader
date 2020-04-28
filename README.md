@@ -6,6 +6,26 @@ The file `runner.py` runs the `idtech` C app in the background, and processes th
 
 The Python script processes the output and POSTs 'tap' API calls to `TARGET_API_ENDPOINT`, and controls the lights attached to the RPi.
 
+# Features
+* Read a nearby NFC tag and post a tap message to a given API endpoint
+* Light up LED strips in nominated colour in response to a tap
+* Light up LED strips in an error colour in case of error
+* Allow LED strips to be controlled via API from an external source
+* Can be configured, deployed and rebooted via Balena
+
+# Hardware
+
+* Raspberry Pi 4 Model B, 2GB RAM
+* Official power supply
+* IDTech Vivopay Kiosk IV integrated RFID reader
+* 10cm USB-to-micro-USB cable (with 90-degree plugs for space economy)
+* 16GB SD Card
+* 20cm Segment of Pololu 3088  SK9822/APA102C-Based LED Strip 5m
+* Light diffusing surface
+* Ethernet cable
+* DFRobot DHT22 Temperature and Humidity sensor
+* Housing
+
 # Configuration values
 
 ## Environment (set in Balena or using defaults in the code)
