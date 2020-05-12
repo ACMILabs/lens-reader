@@ -1,6 +1,6 @@
-# Kiosk IV tap reader
+# Lens reader
 
-The Kiosk IV tap reader runs on a Raspberry Pi 4, with an IDTech Kiosk IV reader and a strip of Adafruit DotStar LEDs attached, and is deployed via Balena.
+The Lens reader runs on a Raspberry Pi 4, with an IDTech Kiosk IV reader and a strip of Adafruit DotStar LEDs attached, and is deployed via Balena.
 
 The file `runner.py` runs the `idtech` C app in the background, and processes the output of the app. The C app simply continuously prints discovered NFC tag reads to `stdout`.
 
