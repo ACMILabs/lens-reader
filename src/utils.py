@@ -1,15 +1,17 @@
 import os
 import platform
-import socket
 import uuid
 from datetime import datetime
 
 import pytz
+import requests
 
 DNS_SERVER = os.getenv('DNS_SERVER', '8.8.8.8')
 DNS_PORT = int(os.getenv('DNS_PORT', '80'))
 TIMEZONE = os.getenv('TIMEZONE', 'Australia/Victoria')
 IS_OSX = platform.system() == 'Darwin'
+BALENA_SUPERVISOR_ADDRESS = os.getenv('BALENA_SUPERVISOR_ADDRESS')
+BALENA_SUPERVISOR_API_KEY = os.getenv('BALENA_SUPERVISOR_API_KEY')
 
 # Set pytz timezone
 TZ = pytz.timezone(TIMEZONE)
@@ -31,10 +33,25 @@ MAC_ADDRESS = get_mac_address()
 
 # Get IP address
 def get_ip_address():
-    socket_ = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    socket_.connect((DNS_SERVER, DNS_PORT))
-    ip_address = socket_.getsockname()[0]
-    socket_.close()
+    """
+    Get the external IP address from the Balena supervisor API.
+    """
+    ip_address = None
+    try:
+        balena_api_url = f'{BALENA_SUPERVISOR_ADDRESS}/v1/device'\
+                            f'?apikey={BALENA_SUPERVISOR_API_KEY}'
+        headers = {
+            'Content-Type': 'application/json',
+        }
+        response = requests.get(balena_api_url, headers=headers)
+        response.raise_for_status()
+        ip_address = response.json().get('ip_address')
+    except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.HTTPError,
+            requests.exceptions.MissingSchema,
+    ) as exception:
+        print(f'Failed to get IP address from Balena API: {exception}')
     return ip_address
 
 

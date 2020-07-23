@@ -1,3 +1,5 @@
+import json
+import os
 from time import sleep, time
 from unittest.mock import MagicMock, patch
 
@@ -5,8 +7,49 @@ import requests
 
 import src.runner
 from src.runner import LEDControllerThread, TapManager
+from src.utils import get_ip_address
 
 src.runner.TAP_SEND_RETRY_SECS = 0.1
+
+
+def file_to_string_strip_new_lines(filename):
+    """
+    Read file and return as string with new line characters stripped
+    :param filename: a filename relative to the current working directory.
+    e.g. 'xml_files/example.xml' or 'example.xml'
+    :return: a string representation of the contents of filename, with new line characters removed
+    """
+    # get current working directory
+    cwd = os.path.dirname(__file__)
+    file_as_string = ""
+
+    # open filename assuming filename is relative to current working directory
+    with open(os.path.join(cwd, filename), 'r') as file_obj:
+        # strip new line characters
+        file_as_string = file_obj.read().replace('\n', '')
+    # return string
+    return file_as_string
+
+
+def mocked_requests_get(*args, **kwargs):
+    """
+    Thanks to https://stackoverflow.com/questions/15753390/how-can-i-mock-requests-and-the-response
+    """
+    class MockResponse:
+        def __init__(self, json_data, status_code):
+            self.content = json.loads(json_data)
+            self.status_code = status_code
+
+        def json(self):
+            return self.content
+
+        def raise_for_status(self):
+            return None
+
+    if '/v1/device?apikey' in args[0]:
+        return MockResponse(file_to_string_strip_new_lines('data/device.json'), 200)
+
+    return MockResponse(None, 404)
 
 
 def test_leds_ramp_on():
@@ -146,3 +189,41 @@ def test_send_tap_or_requeue_no_network_does_not_spam_sentry(capture_exception):
     tap_manager.send_tap_or_requeue()
     tap_manager.send_tap_or_requeue()
     assert capture_exception.call_count == 1
+
+
+@patch('requests.get', MagicMock(side_effect=mocked_requests_get))
+def test_get_ip_address_from_balena():
+    """
+    Test get_ip_address from the Balena supervisor API works as expected.
+    """
+    ip_address = get_ip_address()
+    assert ip_address == '10.1.2.3'
+
+
+@patch('requests.get', MagicMock(side_effect=requests.exceptions.ConnectionError()))
+def test_get_ip_address_from_balena_fails_gracefully():
+    """
+    Test get_ip_address from the Balena supervisor API fails gracefully.
+    """
+    ip_address = get_ip_address()
+    assert not ip_address
+
+
+@patch('requests.get', MagicMock(side_effect=mocked_requests_get))
+def test_tap_data_shape():
+    """
+    Test the Tap data shape is as expected.
+    """
+    # src.utils gets run before we can mock it
+    # So run get_ip_address() again to set it here
+    src.runner.IP_ADDRESS = get_ip_address()
+    lens_uid = 'abcdef123456'
+    tap_manager = TapManager()
+    tap = tap_manager.create_tap(lens_uid)
+    assert tap['lens']['uid'] == lens_uid
+    assert tap['tap_datetime']
+    assert tap['label'] == '1'
+    assert tap['data']['lens_reader']['device_name'] == 'DD-00'
+    assert tap['data']['lens_reader']['mac_address']
+    assert tap['data']['lens_reader']['reader_ip'] == '10.1.2.3'
+    assert tap['data']['lens_reader']['reader_model'] == 'IDTech Kiosk IV'
