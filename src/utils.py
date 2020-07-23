@@ -34,7 +34,8 @@ MAC_ADDRESS = get_mac_address()
 # Get IP address
 def get_ip_address():
     """
-    Get the external IP address from the Balena supervisor API.
+    Get the Lens Reader's IP address from the Balena supervisor API.
+    Note: the Balena supervisor is a local API.
     """
     ip_address = None
     try:
