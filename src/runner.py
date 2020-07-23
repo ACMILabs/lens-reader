@@ -36,9 +36,8 @@ AUTH_TOKEN = os.getenv('AUTH_TOKEN', '')
 XOS_LABEL_ID = os.getenv('XOS_LABEL_ID', '1')
 SENTRY_ID = os.getenv('SENTRY_ID')
 
-DEVICE_NAME = os.getenv('DEVICE_NAME')
+DEVICE_NAME = os.getenv('BALENA_DEVICE_NAME_AT_INIT')
 READER_MODEL = os.getenv('READER_MODEL')
-READER_NAME = DEVICE_NAME or 'nfc-' + IP_ADDRESS.split('.')[-1]  # not user-settable
 
 TAP_OFF_TIMEOUT = float(os.getenv('TAP_OFF_TIMEOUT', '0.5'))  # seconds
 LEDS_BRIGHTNESS = float(os.getenv('LEDS_BRIGHTNESS', '1.0'))
@@ -258,10 +257,10 @@ class TapManager:
             'label': XOS_LABEL_ID,
             'data': {
                 'lens_reader': {
+                    'device_name': DEVICE_NAME,
                     'mac_address': MAC_ADDRESS,
                     'reader_ip': IP_ADDRESS,
                     'reader_model': READER_MODEL,
-                    'reader_name': READER_NAME,
                 }
             }
         }
