@@ -1,0 +1,12 @@
+{
+  "api_port": 48484,
+  "ip_address": "10.1.2.3",
+  "os_version": "balenaOS 2.47.0+rev1",
+  "supervisor_version": "10.6.27",
+  "update_pending": false,
+  "update_failed": false,
+  "update_downloaded": false,
+  "commit": "c468f03fb6608929cd8cc775381ae4f7",
+  "status": "Idle",
+  "download_progress": null
+}

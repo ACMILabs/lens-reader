@@ -36,8 +36,8 @@ AUTH_TOKEN = os.getenv('AUTH_TOKEN', '')
 XOS_LABEL_ID = os.getenv('XOS_LABEL_ID', '1')
 SENTRY_ID = os.getenv('SENTRY_ID')
 
-DEVICE_NAME = os.getenv('BALENA_DEVICE_NAME_AT_INIT')
-READER_MODEL = os.getenv('READER_MODEL')
+DEVICE_NAME = os.getenv('BALENA_DEVICE_NAME_AT_INIT', 'DD-00')
+READER_MODEL = os.getenv('READER_MODEL', 'IDTech Kiosk IV')
 
 TAP_OFF_TIMEOUT = float(os.getenv('TAP_OFF_TIMEOUT', '0.5'))  # seconds
 LEDS_BRIGHTNESS = float(os.getenv('LEDS_BRIGHTNESS', '1.0'))
