@@ -15,7 +15,8 @@ import requests
 import sentry_sdk
 from flask import Flask, request
 
-from src.utils import IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ, env_to_tuple, log
+from src.utils import (DEVICE_NAME, IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ,
+                       env_to_tuple, log, set_hostname)
 
 try:
     import src.adafruit_dotstar as dotstar
@@ -35,10 +36,7 @@ TARGET_TAPS_ENDPOINT = os.getenv('TARGET_TAPS_ENDPOINT', f'{TARGET_API_ENDPOINT}
 AUTH_TOKEN = os.getenv('AUTH_TOKEN', '')
 XOS_LABEL_ID = os.getenv('XOS_LABEL_ID', '1')
 SENTRY_ID = os.getenv('SENTRY_ID')
-
-DEVICE_NAME = os.getenv('BALENA_DEVICE_NAME_AT_INIT', 'DD-00')
 READER_MODEL = os.getenv('READER_MODEL', 'IDTech Kiosk IV')
-
 TAP_OFF_TIMEOUT = float(os.getenv('TAP_OFF_TIMEOUT', '0.5'))  # seconds
 LEDS_BRIGHTNESS = float(os.getenv('LEDS_BRIGHTNESS', '1.0'))
 # seconds to cycle between IN and OUT colours.
@@ -50,8 +48,11 @@ LEDS_FAILED_COLOUR = env_to_tuple('LEDS_FAILED_COLOUR', '137,0,34')  # Medium re
 # up ramp_on, auto-hold (if needed), down ramp_on
 LEDS_SIGNAL_TIMES = env_to_tuple('LEDS_SIGNAL_TIMES', '0.3,0.5,0.6')
 LEDS_IN_STRING = int(os.getenv('LEDS_IN_STRING', '12'))  # Number of LEDs to light up
-
 TAP_SEND_RETRY_SECS = int(os.getenv('TAP_SEND_RETRY_SECS', '5'))
+SET_HOSTNAME = os.getenv('SET_HOSTNAME', 'false').lower() == 'true'
+
+if SET_HOSTNAME:
+    set_hostname()
 
 if IS_OSX:
     FOLDER = './bin/mac/'

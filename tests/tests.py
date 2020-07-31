@@ -6,10 +6,13 @@ from unittest.mock import MagicMock, patch
 import requests
 
 import src.runner
+import src.utils
 from src.runner import LEDControllerThread, TapManager
-from src.utils import get_ip_address
+from src.utils import get_ip_address, set_hostname
 
 src.runner.TAP_SEND_RETRY_SECS = 0.1
+src.utils.BALENA_SUPERVISOR_ADDRESS = 'http://localhost'
+src.utils.BALENA_SUPERVISOR_API_KEY = 'somekey'
 
 
 def file_to_string_strip_new_lines(filename):
@@ -48,6 +51,8 @@ def mocked_requests_get(*args, **kwargs):
 
     if '/v1/device?apikey' in args[0]:
         return MockResponse(file_to_string_strip_new_lines('data/device.json'), 200)
+    if '/v1/device/host-config?apikey' in args[0]:
+        return MockResponse(file_to_string_strip_new_lines('data/host-config.json'), 200)
 
     return MockResponse(None, 404)
 
@@ -194,7 +199,7 @@ def test_send_tap_or_requeue_no_network_does_not_spam_sentry(capture_exception):
 @patch('requests.get', MagicMock(side_effect=mocked_requests_get))
 def test_get_ip_address_from_balena():
     """
-    Test get_ip_address from the Balena supervisor API works as expected.
+    Test get_ip_address using the Balena supervisor API works as expected.
     """
     ip_address = get_ip_address()
     assert ip_address == '10.1.2.3'
@@ -203,7 +208,7 @@ def test_get_ip_address_from_balena():
 @patch('requests.get', MagicMock(side_effect=requests.exceptions.ConnectionError()))
 def test_get_ip_address_from_balena_fails_gracefully():
     """
-    Test get_ip_address from the Balena supervisor API fails gracefully.
+    Test get_ip_address using the Balena supervisor API fails gracefully.
     """
     ip_address = get_ip_address()
     assert not ip_address
@@ -227,3 +232,21 @@ def test_tap_data_shape():
     assert tap['data']['lens_reader']['mac_address']
     assert tap['data']['lens_reader']['reader_ip'] == '10.1.2.3'
     assert tap['data']['lens_reader']['reader_model'] == 'IDTech Kiosk IV'
+
+
+@patch('requests.patch', MagicMock(side_effect=mocked_requests_get))
+def test_set_hostname_from_balena():
+    """
+    Test set_hostname using the Balena supervisor API works as expected.
+    """
+    status = set_hostname()
+    assert status == 200
+
+
+@patch('requests.patch', MagicMock(side_effect=requests.exceptions.ConnectionError()))
+def test_set_hostname_from_balena_fails_gracefully():
+    """
+    Test set_hostname using the Balena supervisor API fails gracefully.
+    """
+    status = set_hostname()
+    assert not status == 200
