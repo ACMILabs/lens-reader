@@ -51,9 +51,6 @@ LEDS_IN_STRING = int(os.getenv('LEDS_IN_STRING', '12'))  # Number of LEDs to lig
 TAP_SEND_RETRY_SECS = int(os.getenv('TAP_SEND_RETRY_SECS', '5'))
 SET_HOSTNAME = os.getenv('SET_HOSTNAME', 'false').lower() == 'true'
 
-if SET_HOSTNAME:
-    set_hostname()
-
 if IS_OSX:
     FOLDER = './bin/mac/'
 else:
@@ -440,6 +437,10 @@ def main():
 
     # Start thread to send taps.
     Thread(target=tap_manager.send_taps).start()
+
+    # Start thread to set the hostname.
+    if SET_HOSTNAME:
+        Thread(target=set_hostname).start()
 
     # Start a Flask server to expose /api/lights/ endpoint
     app.run(host='0.0.0.0', port=8082)

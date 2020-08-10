@@ -7,6 +7,7 @@ import pytz
 import requests
 import sentry_sdk
 
+DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'
 DNS_SERVER = os.getenv('DNS_SERVER', '8.8.8.8')
 DNS_PORT = int(os.getenv('DNS_PORT', '80'))
 TIMEZONE = os.getenv('TIMEZONE', 'Australia/Victoria')
@@ -81,6 +82,8 @@ def set_hostname():
     """
     status = None
     try:
+        if DEBUG:
+            print(f'Attempting to set hostname to {DEVICE_NAME}')
         balena_api_url = f'{BALENA_SUPERVISOR_ADDRESS}/v1/device/host-config'\
                             f'?apikey={BALENA_SUPERVISOR_API_KEY}'
         json_data = {
@@ -97,4 +100,6 @@ def set_hostname():
         message = f'Failed to set the hostname with exception: {exception}'
         print(message)
         sentry_sdk.capture_exception(exception)
+    if DEBUG:
+        print(f'Set hostname to {DEVICE_NAME} returned {status}')
     return status
