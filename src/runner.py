@@ -316,16 +316,22 @@ class TapManager:
         if not self.leds.blocked_by:
             self.leds.blocked_by = 'tap'
             self.leds.success_on()
-        tap = self.create_tap(self.last_id)
-        self.queue.put((tap['tap_datetime'], tap))
+            tap = self.create_tap(self.last_id)
+            self.queue.put((tap['tap_datetime'], tap))
+        else:
+            log('Tap blocked by: ', self.leds.blocked_by)
 
     def tap_off(self):
         log("Tap Off: ", self.last_id)
-        # turn leds off only if triggered by a tap
         if self.leds.blocked_by == 'tap':
+            # if blocked by a tap, turn LEDs off
             self.last_id = None
             self.leds.success_off()
             self.leds.blocked_by = None
+        elif self.leds.blocked_by == 'remote':
+            # if blocked by a remote LEDs command, leave LEDs alone, and only reset
+            # last lens id so we can still receive new tap on events
+            self.last_id = None
 
     def _reset_tap_off_timer(self):
         # reset the tap-off timer for this ID
@@ -403,7 +409,15 @@ def toggle_lights():
         assert (tap_manager.leds.blocked_by == 'remote' and cross_fade == 0.0) or \
             (not tap_manager.leds.blocked_by and cross_fade > 0.0)
 
-        tap_manager.leds.blocked_by = 'remote' if cross_fade > 0.0 else None
+        if cross_fade > 0.0:
+            # block taps and LED events
+            tap_manager.leds.blocked_by = 'remote'
+        else:
+            # reset ready for more taps
+            tap_manager.last_id = None
+            tap_manager.leds.success_off()
+            tap_manager.leds.blocked_by = None
+
         tap_manager.leds.toggle_lights(rgb_value, ramp_time, cross_fade)
         return 'Leds toggled successfully.', 200
 

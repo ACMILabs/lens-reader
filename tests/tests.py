@@ -132,6 +132,7 @@ def test_send_tap_or_requeue(xos_request):
     # add two taps to the queue
     tap_manager.last_id = '123456789'
     tap_manager.tap_on()
+    tap_manager.tap_off()
     tap_manager.last_id = '000000000'
     tap_manager.tap_on()
     assert tap_manager.queue.qsize() == 2
