@@ -260,3 +260,55 @@ def test_taps_when_leds_blocked_by_remote(xos_request):
 
     assert xos_request.call_count == 1
     assert tap_manager.queue.empty()
+
+
+def test_toggle_lights():
+    """
+    Test the toggle_lights route.
+    """
+    tap_manager = src.runner.tap_manager
+    with src.runner.app.test_client() as client:
+        assert not tap_manager.leds.blocked_by
+
+        # turn on LEDs
+        data = dict(
+            rgb_value=[5, 25, 25],
+            ramp_time=0.5,
+            cross_fade=1.0,
+        )
+        response = client.post(
+            '/api/lights/',
+            data=json.dumps(data),
+            content_type='application/json',
+        )
+        assert response.status_code == 200
+        assert tap_manager.leds.blocked_by == 'remote'
+        assert tap_manager.leds.ramp_target_colour == data['rgb_value']
+        assert tap_manager.leds.ramp_target == data['cross_fade']
+        assert tap_manager.leds.ramp_duration == data['ramp_time']
+
+        # try and tap
+        tap_manager.last_id = '123456789'
+        tap_manager.tap_on()
+        tap_manager.tap_off()
+        assert tap_manager.queue.qsize() == 0
+
+        # turn off LEDs
+        data = dict(
+            rgb_value=[5, 25, 25],
+            ramp_time=0.5,
+            cross_fade=0.0,
+        )
+        response = client.post(
+            '/api/lights/',
+            data=json.dumps(data),
+            content_type='application/json',
+        )
+        assert response.status_code == 200
+        assert not tap_manager.leds.blocked_by
+
+        # try and tap
+        tap_manager.last_id = '123456789'
+        tap_manager.tap_on()
+        tap_manager.tap_off()
+        assert tap_manager.queue.qsize() == 1
