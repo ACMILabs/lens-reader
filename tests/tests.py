@@ -228,3 +228,35 @@ def test_tap_data_shape():
     assert tap['data']['lens_reader']['mac_address']
     assert tap['data']['lens_reader']['reader_ip'] == '10.1.2.3'
     assert tap['data']['lens_reader']['reader_model'] == 'IDTech Kiosk IV'
+
+
+@patch('requests.post', side_effect=MagicMock())
+def test_taps_when_leds_blocked_by_remote(xos_request):
+    """
+    Test tap_on and tap_off function as expected when blocked by a remote LED request.
+    """
+    tap_manager = TapManager()
+
+    # simulate a remote LED request
+    tap_manager.leds.blocked_by = 'remote'
+    assert tap_manager.queue.qsize() == 0
+
+    # try and tap
+    tap_manager.last_id = '123456789'
+    tap_manager.tap_on()
+    tap_manager.tap_off()
+    assert tap_manager.queue.qsize() == 0
+
+    # return to initial state
+    tap_manager.leds.blocked_by = None
+
+    # try and tap
+    tap_manager.last_id = '123456789'
+    tap_manager.tap_on()
+    tap_manager.tap_off()
+    assert tap_manager.queue.qsize() == 1
+
+    tap_manager.send_tap_or_requeue()
+
+    assert xos_request.call_count == 1
+    assert tap_manager.queue.empty()
