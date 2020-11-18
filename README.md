@@ -112,6 +112,8 @@ To turn the lights on, set the `cross_fade` value to a float greater than 0, up 
 
 To turn the lights off, set the `cross_fade` value to 0.
 
+**Note**: When the `cross_fade` value is greater than `0`, Taps are not sent to XOS.
+
 ### Headers
 ```
 Content-Type: application/json
@@ -139,7 +141,7 @@ Content-Type: application/json
 
 ### Example
 
-Override the colour of the LEDs, and set them to a specific colour:
+Override the colour of the LEDs, and set them to a specific colour (which also prevents Taps being sent to XOS):
 
 ```
 curl -X POST -H "Content-Type: application/json" -d '{
