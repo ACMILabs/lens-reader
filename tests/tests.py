@@ -52,6 +52,24 @@ def mocked_requests_get(*args, **kwargs):
     return MockResponse(None, 404)
 
 
+def mocked_requests_post(*args, **kwargs):
+    """
+    Thanks to https://stackoverflow.com/questions/15753390/how-can-i-mock-requests-and-the-response
+    """
+    class MockResponse:
+        def __init__(self, json_data, status_code):
+            self.text = json.loads(json_data)
+            self.status_code = status_code
+
+        def json(self):
+            return self.text
+
+        def raise_for_status(self):
+            return None
+
+    return MockResponse('["No lens matching that uid could be found."]', 400)
+
+
 def test_leds_ramp_on():
     """
     Test that ramp_on on the LEDs work. That is, the LEDs become a colour
@@ -142,6 +160,24 @@ def test_send_tap_or_requeue(xos_request):
 
     assert xos_request.call_count == 2
     assert tap_manager.queue.empty()
+
+
+@patch('requests.post', MagicMock(side_effect=mocked_requests_post))
+def test_send_tap_or_requeue_failure():
+    """
+    Test send_tap_or_requeue handles a 400 error response from XOS
+    """
+    tap_manager = TapManager()
+    assert tap_manager.queue.empty()
+
+    # add one tap to the queue
+    tap_manager.last_id = '123456789'
+    tap_manager.tap_on()
+    assert tap_manager.queue.qsize() == 1
+
+    # send the tap
+    return_code = tap_manager.send_tap_or_requeue()
+    assert return_code == 1
 
 
 @patch('requests.post', MagicMock(side_effect=requests.exceptions.ConnectionError()))

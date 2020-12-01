@@ -279,7 +279,7 @@ class TapManager:
                 log(response.text)
                 return 0
 
-            if response.status_code == 404:
+            if response.status_code in [400, 404]:  # 400 UID doesn't exist in XOS
                 log(response.text)
                 self.leds.failed()
                 return 1
