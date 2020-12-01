@@ -53,6 +53,8 @@ LEDS_IN_STRING = int(os.getenv('LEDS_IN_STRING', '12'))  # Number of LEDs to lig
 
 TAP_SEND_RETRY_SECS = int(os.getenv('TAP_SEND_RETRY_SECS', '5'))
 
+XOS_FAILED_RESPONSE_CODES = [400, 404]  # 400 Lens UID not found in XOS
+
 if IS_OSX:
     FOLDER = './bin/mac/'
 else:
@@ -240,6 +242,7 @@ class TapManager:
         # Tap init
         self.last_id = None
         self.last_id_time = time()
+        self.last_id_failed = False
         self.tap_off_timer = None
         self.leds = LEDControllerThread()
         self.queue = PriorityQueue()
@@ -279,9 +282,16 @@ class TapManager:
                 log(response.text)
                 return 0
 
-            if response.status_code in [400, 404]:  # 400 UID doesn't exist in XOS
+            if response.status_code in XOS_FAILED_RESPONSE_CODES:
                 log(response.text)
-                self.leds.failed()
+                self.last_id_failed = True
+                if not self.leds.blocked_by:
+                    # XOS returned a failed tap after the visitor tapped off,
+                    # so show the failed LED state asynchronously.
+                    # Possible UX problem: the visitor walks away before the LEDs
+                    # show the failed state.
+                    self.leds.failed()
+                    self.last_id_failed = False
                 return 1
 
             log(response.text)
@@ -323,8 +333,13 @@ class TapManager:
         log("Tap Off: ", self.last_id)
         # turn leds off only if triggered by a tap
         if self.leds.blocked_by == 'tap':
-            self.last_id = None
             self.leds.success_off()
+            if self.last_id_failed:
+                # XOS has returned a failed tap before the visitor tapped off,
+                # so show the failed LED state now.
+                self.leds.failed()
+            self.last_id = None
+            self.last_id_failed = False
             self.leds.blocked_by = None
 
     def _reset_tap_off_timer(self):
