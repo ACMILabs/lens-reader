@@ -12,6 +12,19 @@ from src.utils import get_ip_address
 src.runner.TAP_SEND_RETRY_SECS = 0.1
 
 
+class MethodWrapper():
+    """
+    Used to add call_count to a patched method so we can test how many times a method is called.
+    """
+    def __init__(self, func):
+        self.call_count = 0
+        self.func = func
+
+    def __call__(self, *args, **kwargs):
+        self.call_count += 1
+        return self.func(*args, **kwargs)
+
+
 def file_to_string_strip_new_lines(filename):
     """
     Read file and return as string with new line characters stripped
@@ -165,19 +178,54 @@ def test_send_tap_or_requeue(xos_request):
 @patch('requests.post', MagicMock(side_effect=mocked_requests_post))
 def test_send_tap_or_requeue_failure():
     """
-    Test send_tap_or_requeue handles a 400 error response from XOS
+    Test send_tap_or_requeue handles a 400 error response from XOS.
+    Test that the failed LEDs method is called as expected.
     """
+    # XOS failed tap arrives before tap off
     tap_manager = TapManager()
     assert tap_manager.queue.empty()
+    new_call = MethodWrapper(tap_manager.leds.failed)
+    with patch.object(tap_manager.leds, 'failed', new=new_call) as fake_leds_failed:
+        # add one tap to the queue
+        tap_manager.last_id = '123456789'
+        tap_manager.tap_on()
+        assert tap_manager.queue.qsize() == 1
+        assert tap_manager.leds.blocked_by == 'tap'
 
-    # add one tap to the queue
-    tap_manager.last_id = '123456789'
-    tap_manager.tap_on()
-    assert tap_manager.queue.qsize() == 1
+        # send the tap
+        return_code = tap_manager.send_tap_or_requeue()
+        assert tap_manager.queue.qsize() == 0
+        assert return_code == 1
+        assert tap_manager.last_id_failed
+        assert fake_leds_failed.call_count == 0
 
-    # send the tap
-    return_code = tap_manager.send_tap_or_requeue()
-    assert return_code == 1
+        # simulate removing the lens
+        tap_manager.tap_off()
+        assert not tap_manager.last_id_failed
+        assert fake_leds_failed.call_count == 1
+
+    # XOS failed tap arrives after tap off
+    tap_manager = TapManager()
+    assert tap_manager.queue.empty()
+    new_call = MethodWrapper(tap_manager.leds.failed)
+    with patch.object(tap_manager.leds, 'failed', new=new_call) as fake_leds_failed:
+        # add one tap to the queue
+        tap_manager.last_id = '123456789'
+        tap_manager.tap_on()
+        assert tap_manager.queue.qsize() == 1
+        assert tap_manager.leds.blocked_by == 'tap'
+
+        # simulate removing the lens
+        tap_manager.tap_off()
+        assert not tap_manager.last_id_failed
+        assert fake_leds_failed.call_count == 0
+
+        # send the tap
+        return_code = tap_manager.send_tap_or_requeue()
+        assert tap_manager.queue.qsize() == 0
+        assert return_code == 1
+        assert not tap_manager.last_id_failed
+        assert fake_leds_failed.call_count == 1
 
 
 @patch('requests.post', MagicMock(side_effect=requests.exceptions.ConnectionError()))
