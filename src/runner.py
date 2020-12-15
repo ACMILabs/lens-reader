@@ -50,6 +50,8 @@ LEDS_FAILED_COLOUR = env_to_tuple('LEDS_FAILED_COLOUR', '137,0,34')  # Medium re
 # up ramp_on, auto-hold (if needed), down ramp_on
 LEDS_SIGNAL_TIMES = env_to_tuple('LEDS_SIGNAL_TIMES', '0.3,0.5,0.6')
 LEDS_IN_STRING = int(os.getenv('LEDS_IN_STRING', '12'))  # Number of LEDs to light up
+# Allow LED API POST to override Lens response
+LEDS_CONTROL_OVERRIDE = os.getenv('LEDS_CONTROL_OVERRIDE', 'false').lower() == 'true'
 
 TAP_SEND_RETRY_SECS = int(os.getenv('TAP_SEND_RETRY_SECS', '5'))
 
@@ -419,10 +421,17 @@ def toggle_lights():
         ramp_time = float(request_data['ramp_time'])
         cross_fade = float(request_data['cross_fade'])
 
-        # ensure we are turning off a previous remote toggle
-        # or turning on if nothing is using the leds
-        assert (tap_manager.leds.blocked_by == 'remote' and cross_fade == 0.0) or \
-            (not tap_manager.leds.blocked_by and cross_fade > 0.0)
+        if LEDS_CONTROL_OVERRIDE and tap_manager.leds.blocked_by == 'tap' and cross_fade > 0.0:
+            # If a Maker Moment needs to control LEDs while a Lens is sitting on the Lens Reader
+            # the Lens Reader must have LEDS_CONTROL_OVERRIDE set true to enable
+            # the reader to force tap-off, and control the LEDs
+            tap_manager.tap_off()
+        else:
+            # Normal behaviour, don't interrupt a Lens tap/response, so:
+            # ensure we are turning off a previous remote toggle
+            # or turning on if nothing is using the leds
+            assert (tap_manager.leds.blocked_by == 'remote' and cross_fade == 0.0) or \
+                (not tap_manager.leds.blocked_by and cross_fade > 0.0)
 
         if cross_fade > 0.0:
             # block taps and LED events
