@@ -51,6 +51,7 @@ LEDS_BREATHE_COLOUR_IN=95,70,26     # RGB Medium warm white
 LEDS_SUCCESS_COLOUR=255,238,202     # RGB Bright warm white
 LEDS_FAILED_COLOUR=137,0,34         # RGB Medium red
 LEDS_SIGNAL_TIMES=0.3,0.5,0.6       # Seconds to take for success/failed colour fade in, auto-hold (if needed), fade out.
+LEDS_CONTROL_OVERRIDE=false         # set to 'true' to override lens tap LED responses with LED API control commands
 ```
 
 # Tap API calls
@@ -80,6 +81,8 @@ Each maker moment will provide its own `TARGET_API_ENDPOINT` URL to receive tap 
 
 * `maker_moment` is a constant integer which determines the maker moment that was tapped. XOS team can advise this value for each maker moment.
 * `experience_id` is a unique string that identifies the experience which was just saved. The ID can be used at retrieval time to e.g. locate specific media and metadata on cloud storage. In other words, all media and metadata should be identifiable from constants and the `experience_id`.
+
+The default LED behaviour is never to interrupt a lens tap, but should a maker moment need to override the LED control while a lens is still on the lens reader, `LEDS_CONTROL_OVERRIDE` must be set `true`.
 
 # Compiling the `idtech` application (in C)
 
