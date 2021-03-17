@@ -57,8 +57,8 @@ TAP_SEND_RETRY_SECS = int(os.getenv('TAP_SEND_RETRY_SECS', '5'))
 
 XOS_FAILED_RESPONSE_CODES = [400, 404]  # 400 Lens UID not found in XOS
 
-ONBOARDING_LEDS_API = os.getenv('ONBOARDING_API')
-ONBOARDING_LEDS_DATA = os.getenv('ONBOARDING_DATA', '#TODO')
+ONBOARDING_LEDS_API = os.getenv('ONBOARDING_LEDS_API')
+ONBOARDING_LEDS_DATA = os.getenv('ONBOARDING_LEDS_DATA')
 
 if IS_OSX:
     FOLDER = './bin/mac/'
@@ -242,9 +242,14 @@ class LEDControllerThread(Thread):
                 response = requests.post(
                     url=ONBOARDING_LEDS_API,
                     json=data,
-                    timeout=3,
+                    timeout=5,
                 )
                 response.raise_for_status()
+                log('Sent onboarding LED request %s %s, response: %s' % (
+                    ONBOARDING_LEDS_API,
+                    ONBOARDING_LEDS_DATA,
+                    response.status_code,
+                ))
             except json.decoder.JSONDecodeError as exception:
                 log('Failed to parse JSON from string %s\n%s' % (
                     ONBOARDING_LEDS_DATA,
@@ -369,7 +374,7 @@ class TapManager:
             self.queue.put((tap['tap_datetime'], tap))
             self.leds.blocked_by = 'tap'
             self.leds.success_on()
-            self.leds.success_on_onboarding_lights()
+            Thread(target=self.leds.success_on_onboarding_lights).start()
         else:
             log('Tap blocked by: ', self.leds.blocked_by)
 
@@ -509,6 +514,12 @@ tap_manager = TapManager()  # pylint: disable=invalid-name
 def main():
     """Launcher."""
     print('XOS Lens Reader (KioskIV)')
+
+    if ONBOARDING_LEDS_API:
+        print('----------------------')
+        print(f'Onboarding LEDs API: {ONBOARDING_LEDS_API}')
+        print(f'Onboarding LEDs Data: {ONBOARDING_LEDS_DATA}')
+        print('----------------------')
 
     tap_manager.leds.start()
 
