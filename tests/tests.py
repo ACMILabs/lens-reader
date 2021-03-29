@@ -482,3 +482,48 @@ def test_toggle_lights_with_leds_control_override():
         tap_manager.tap_on()
         tap_manager.tap_off()
         assert tap_manager.queue.qsize() == 2
+
+
+@patch('requests.post', side_effect=MagicMock())
+def test_success_on_onboarding_lights(led_post):
+    """
+    Test that the onboarding lights POST request is sent as expected,
+    and errors are handled successfully.
+    """
+    leds_controller = LEDControllerThread()
+    leds_controller.success_on_onboarding_lights()
+    assert led_post.call_count == 0
+
+    src.runner.ONBOARDING_LEDS_API = 'https://xos.acmi.net.au/api/fake'
+    src.runner.ONBOARDING_LEDS_DATA = '{}'
+    leds_controller.success_on_onboarding_lights()
+    assert led_post.call_count == 1
+
+
+@patch('requests.post', MagicMock(side_effect=[
+    requests.exceptions.ConnectionError(),
+    requests.exceptions.Timeout(),
+    requests.exceptions.HTTPError(),
+]))
+@patch('sentry_sdk.capture_exception', side_effect=MagicMock())
+def test_success_on_onboarding_lights_fails_gracefully(capture_exception):
+    """
+    Test that the onboarding lights POST request is sent as expected,
+    and errors are handled successfully.
+    """
+    src.runner.ONBOARDING_LEDS_API = None
+    leds_controller = LEDControllerThread()
+    leds_controller.success_on_onboarding_lights()
+    assert capture_exception.call_count == 0
+
+    src.runner.ONBOARDING_LEDS_API = 'https://xos.acmi.net.au/api/fake'
+    src.runner.ONBOARDING_LEDS_DATA = 'not-json'
+    leds_controller.success_on_onboarding_lights()
+    assert capture_exception.call_count == 1
+    src.runner.ONBOARDING_LEDS_DATA = '{"this": "that"}'
+    leds_controller.success_on_onboarding_lights()
+    assert capture_exception.call_count == 2
+    leds_controller.success_on_onboarding_lights()
+    assert capture_exception.call_count == 3
+    leds_controller.success_on_onboarding_lights()
+    assert capture_exception.call_count == 4

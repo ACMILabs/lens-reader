@@ -57,6 +57,9 @@ TAP_SEND_RETRY_SECS = int(os.getenv('TAP_SEND_RETRY_SECS', '5'))
 
 XOS_FAILED_RESPONSE_CODES = [400, 404]  # 400 Lens UID not found in XOS
 
+ONBOARDING_LEDS_API = os.getenv('ONBOARDING_LEDS_API')
+ONBOARDING_LEDS_DATA = os.getenv('ONBOARDING_LEDS_DATA')
+
 if IS_OSX:
     FOLDER = './bin/mac/'
 else:
@@ -229,6 +232,47 @@ class LEDControllerThread(Thread):
         self.ramp_duration = ramp_time
         self.ramp_time0 = time()
 
+    def success_on_onboarding_lights(self):
+        """
+        If ONBOARDING_LEDS_API is set, send an API call to turn on the onboarding lights.
+        """
+        if ONBOARDING_LEDS_API and ONBOARDING_LEDS_DATA:
+            try:
+                data = json.loads(ONBOARDING_LEDS_DATA)
+                response = requests.post(
+                    url=ONBOARDING_LEDS_API,
+                    json=data,
+                    timeout=5,
+                )
+                response.raise_for_status()
+                log('Sent onboarding LED request %s %s, response: %s' % (
+                    ONBOARDING_LEDS_API,
+                    ONBOARDING_LEDS_DATA,
+                    response.status_code,
+                ))
+            except json.decoder.JSONDecodeError as exception:
+                log('Failed to parse JSON from string %s\n%s' % (
+                    ONBOARDING_LEDS_DATA,
+                    str(exception),
+                ))
+                sentry_sdk.capture_exception(exception)
+            except (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout
+            ) as connection_error:
+                log('Failed to post onboarding lights to %s: %s\n%s' % (
+                    ONBOARDING_LEDS_API,
+                    data,
+                    str(connection_error),
+                ))
+                sentry_sdk.capture_exception(connection_error)
+            except requests.HTTPError as exception:
+                log('Failed to trigger onboarding lights %s with error %s' % (
+                    ONBOARDING_LEDS_API,
+                    str(exception),
+                ))
+                sentry_sdk.capture_exception(exception)
+
 
 class TapManager:
     """
@@ -326,10 +370,11 @@ class TapManager:
         log(' Tap On: ', self.last_id)
         # turn leds on only if not being used
         if not self.leds.blocked_by:
-            self.leds.blocked_by = 'tap'
-            self.leds.success_on()
             tap = self.create_tap(self.last_id)
             self.queue.put((tap['tap_datetime'], tap))
+            self.leds.blocked_by = 'tap'
+            self.leds.success_on()
+            Thread(target=self.leds.success_on_onboarding_lights).start()
         else:
             log('Tap blocked by: ', self.leds.blocked_by)
 
@@ -469,6 +514,12 @@ tap_manager = TapManager()  # pylint: disable=invalid-name
 def main():
     """Launcher."""
     print('XOS Lens Reader (KioskIV)')
+
+    if ONBOARDING_LEDS_API:
+        print('----------------------')
+        print(f'Onboarding LEDs API: {ONBOARDING_LEDS_API}')
+        print(f'Onboarding LEDs Data: {ONBOARDING_LEDS_DATA}')
+        print('----------------------')
 
     tap_manager.leds.start()
 
