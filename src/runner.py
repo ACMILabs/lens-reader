@@ -56,6 +56,7 @@ LEDS_CONTROL_OVERRIDE = os.getenv('LEDS_CONTROL_OVERRIDE', 'false').lower() == '
 TAP_SEND_RETRY_SECS = int(os.getenv('TAP_SEND_RETRY_SECS', '5'))
 
 XOS_FAILED_RESPONSE_CODES = [400, 404]  # 400 Lens UID not found in XOS
+TAP_SUCCESS_RESPONSE_CODES = [200, 201]  # 200 Maker Moments, 201 XOS
 
 ONBOARDING_LEDS_API = os.getenv('ONBOARDING_LEDS_API')
 ONBOARDING_LEDS_DATA = os.getenv('ONBOARDING_LEDS_DATA')
@@ -257,8 +258,8 @@ class LEDControllerThread(Thread):
                 ))
                 sentry_sdk.capture_exception(exception)
             except (
-                requests.exceptions.ConnectionError,
-                requests.exceptions.Timeout
+                    requests.exceptions.ConnectionError,
+                    requests.exceptions.Timeout
             ) as connection_error:
                 log('Failed to post onboarding lights to %s: %s\n%s' % (
                     ONBOARDING_LEDS_API,
@@ -324,7 +325,7 @@ class TapManager:
         try:
             response = requests.post(url=TARGET_TAPS_ENDPOINT, json=tap, headers=headers, timeout=5)
             self.post_to_sentry = True
-            if response.status_code == 201:
+            if response.status_code in TAP_SUCCESS_RESPONSE_CODES:
                 log(response.text)
                 return 0
 
