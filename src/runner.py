@@ -46,7 +46,8 @@ LEDS_BREATHE_TIME = float(os.getenv('LEDS_BREATHE_TIME', '5.0'))
 LEDS_BREATHE_COLOUR_OUT = env_to_tuple('LEDS_BREATHE_COLOUR_OUT', '36,26,10')  # Dim warm white
 LEDS_BREATHE_COLOUR_IN = env_to_tuple('LEDS_BREATHE_COLOUR_IN', '95,70,26')  # Medium warm white
 LEDS_SUCCESS_COLOUR = env_to_tuple('LEDS_SUCCESS_COLOUR', '255,238,202')  # Bright warm white
-LEDS_FAILED_COLOUR = env_to_tuple('LEDS_FAILED_COLOUR', '137,0,34')  # Medium red
+LEDS_FAILED_COLOUR = env_to_tuple('LEDS_FAILED_COLOUR', '149,8,106')  # Purple
+LEDS_SUCCESS_TAP_COLOUR = env_to_tuple('LEDS_SUCCESS_COLOUR', '41,255,120')  # Blue
 # up ramp_on, auto-hold (if needed), down ramp_on
 LEDS_SIGNAL_TIMES = env_to_tuple('LEDS_SIGNAL_TIMES', '0.3,0.5,0.6')
 LEDS_IN_STRING = int(os.getenv('LEDS_IN_STRING', '12'))  # Number of LEDs to light up
@@ -58,7 +59,8 @@ TAP_SEND_RETRY_SECS = int(os.getenv('TAP_SEND_RETRY_SECS', '5'))
 XOS_FAILED_RESPONSE_CODES = [400, 404]  # 400 Lens UID not found in XOS
 
 ONBOARDING_LEDS_API = os.getenv('ONBOARDING_LEDS_API')
-ONBOARDING_LEDS_DATA = os.getenv('ONBOARDING_LEDS_DATA')
+ONBOARDING_LEDS_DATA_SUCCESS = os.getenv('ONBOARDING_LEDS_DATA_SUCCESS')
+ONBOARDING_LEDS_DATA_FAILED = os.getenv('ONBOARDING_LEDS_DATA_FAILED')
 
 if IS_OSX:
     FOLDER = './bin/mac/'
@@ -208,19 +210,26 @@ class LEDControllerThread(Thread):
 
     def success_on(self):
         """
-        Ramp on animation in a sucessful tap.
+        Ramp on animation for a successful Lens read.
         """
         self.ramp_on(LEDS_SUCCESS_COLOUR, LEDS_SIGNAL_TIMES[0])
 
     def success_off(self):
         """
-        Ramp off animation in a sucessful tap.
+        Ramp off animation for a successful Lens read.
         """
         self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
+    def success(self):
+        """
+        Ramp on animation for a sucessful Tap response from XOS/Maker Moments.
+        """
+        self.ramp_on(LEDS_SUCCESS_TAP_COLOUR, LEDS_SIGNAL_TIMES[0])
+
     def failed(self):
         """
-        Triggers a predefined set of colours to indicate a fail state in a tap.
+        Triggers a predefined set of colours to indicate a failed Tap response
+        from XOS/Maker Moments.
         """
         self.ramp_on(LEDS_FAILED_COLOUR, LEDS_SIGNAL_TIMES[0])
         sleep(LEDS_SIGNAL_TIMES[1])
@@ -232,13 +241,26 @@ class LEDControllerThread(Thread):
         self.ramp_duration = ramp_time
         self.ramp_time0 = time()
 
-    def success_on_onboarding_lights(self):
+    def success_onboarding_lights(self):
         """
-        If ONBOARDING_LEDS_API is set, send an API call to turn on the onboarding lights.
+        Set the onboarding lights to success.
         """
-        if ONBOARDING_LEDS_API and ONBOARDING_LEDS_DATA:
+        self.post_to_onboarding_lights(ONBOARDING_LEDS_DATA_SUCCESS)
+
+    def failed_onboarding_lights(self):
+        """
+        Set the onboarding lights to failed.
+        """
+        self.post_to_onboarding_lights(ONBOARDING_LEDS_DATA_FAILED)
+
+    def post_to_onboarding_lights(self, data):
+        """
+        If ONBOARDING_LEDS_API is set, send an API call to turn on the onboarding lights
+        with the data handed in.
+        """
+        if ONBOARDING_LEDS_API and data:
             try:
-                data = json.loads(ONBOARDING_LEDS_DATA)
+                data = json.loads(data)
                 response = requests.post(
                     url=ONBOARDING_LEDS_API,
                     json=data,
@@ -247,12 +269,12 @@ class LEDControllerThread(Thread):
                 response.raise_for_status()
                 log('Sent onboarding LED request %s %s, response: %s' % (
                     ONBOARDING_LEDS_API,
-                    ONBOARDING_LEDS_DATA,
+                    data,
                     response.status_code,
                 ))
             except json.decoder.JSONDecodeError as exception:
                 log('Failed to parse JSON from string %s\n%s' % (
-                    ONBOARDING_LEDS_DATA,
+                    data,
                     str(exception),
                 ))
                 sentry_sdk.capture_exception(exception)
@@ -326,6 +348,9 @@ class TapManager:
             self.post_to_sentry = True
             if response.status_code == 201:
                 log(response.text)
+                if ONBOARDING_LEDS_API:
+                    self.leds.success()
+                    Thread(target=self.leds.success_onboarding_lights).start()
                 return 0
 
             if response.status_code in XOS_FAILED_RESPONSE_CODES:
@@ -337,6 +362,8 @@ class TapManager:
                     # Possible UX problem: the visitor walks away before the LEDs
                     # show the failed state.
                     self.leds.failed()
+                    if ONBOARDING_LEDS_API:
+                        Thread(target=self.leds.failed_onboarding_lights).start()
                     self.last_id_failed = False
                 return 1
 
@@ -374,8 +401,6 @@ class TapManager:
             self.queue.put((tap['tap_datetime'], tap))
             self.leds.blocked_by = 'tap'
             self.leds.success_on()
-            if ONBOARDING_LEDS_API:
-                Thread(target=self.leds.success_on_onboarding_lights).start()
         else:
             log('Tap blocked by: ', self.leds.blocked_by)
 
@@ -519,7 +544,8 @@ def main():
     if ONBOARDING_LEDS_API:
         print('----------------------')
         print(f'Onboarding LEDs API: {ONBOARDING_LEDS_API}')
-        print(f'Onboarding LEDs Data: {ONBOARDING_LEDS_DATA}')
+        print(f'Onboarding LEDs Data Success: {ONBOARDING_LEDS_DATA_SUCCESS}')
+        print(f'Onboarding LEDs Data Failed: {ONBOARDING_LEDS_DATA_FAILED}')
         print('----------------------')
 
     tap_manager.leds.start()
