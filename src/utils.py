@@ -66,4 +66,4 @@ def env_to_tuple(env_name, default=()):
     env_value = os.getenv(env_name)
     if not env_value:
         env_value = default
-    return tuple([float(elem.strip()) for elem in env_value.split(',')])
+    return tuple(float(elem.strip()) for elem in env_value.split(','))

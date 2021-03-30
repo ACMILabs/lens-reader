@@ -90,7 +90,7 @@ class LEDControllerThread(Thread):
         return value_change * (current_time ** 3) + beginning_value
 
     def __init__(self):
-        super(LEDControllerThread, self).__init__()
+        super().__init__()
         self.current_colour = [0, 0, 0]  # the colour LEDs will be set to each fram
         self.breathe_colour = [0, 0, 0]  # the current colour of the breathing animation
 
@@ -257,8 +257,8 @@ class LEDControllerThread(Thread):
                 ))
                 sentry_sdk.capture_exception(exception)
             except (
-                requests.exceptions.ConnectionError,
-                requests.exceptions.Timeout
+                    requests.exceptions.ConnectionError,
+                    requests.exceptions.Timeout
             ) as connection_error:
                 log('Failed to post onboarding lights to %s: %s\n%s' % (
                     ONBOARDING_LEDS_API,
@@ -374,7 +374,8 @@ class TapManager:
             self.queue.put((tap['tap_datetime'], tap))
             self.leds.blocked_by = 'tap'
             self.leds.success_on()
-            Thread(target=self.leds.success_on_onboarding_lights).start()
+            if ONBOARDING_LEDS_API:
+                Thread(target=self.leds.success_on_onboarding_lights).start()
         else:
             log('Tap blocked by: ', self.leds.blocked_by)
 

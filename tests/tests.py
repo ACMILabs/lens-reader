@@ -7,7 +7,7 @@ import requests
 
 import src.runner
 from src.runner import LEDControllerThread, TapManager
-from src.utils import get_ip_address
+from src.utils import env_to_tuple, get_ip_address
 
 src.runner.TAP_SEND_RETRY_SECS = 0.1
 
@@ -527,3 +527,13 @@ def test_success_on_onboarding_lights_fails_gracefully(capture_exception):
     assert capture_exception.call_count == 3
     leds_controller.success_on_onboarding_lights()
     assert capture_exception.call_count == 4
+
+
+def test_env_to_tuple():
+    """
+    Test the env_to_tuple method returns the expected results.
+    """
+    os.environ['ENV_VAR'] = '1,2,3'
+    os.environ['ENV_VAR_FLOATS'] = '1.2,2.3,3.45'
+    assert env_to_tuple('ENV_VAR') == (1, 2, 3)
+    assert env_to_tuple('ENV_VAR_FLOATS') == (1.2, 2.3, 3.45)
