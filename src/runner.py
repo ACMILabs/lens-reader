@@ -225,6 +225,8 @@ class LEDControllerThread(Thread):
         Ramp on animation for a sucessful Tap response from XOS/Maker Moments.
         """
         self.ramp_on(LEDS_SUCCESS_TAP_COLOUR, LEDS_SIGNAL_TIMES[0])
+        if ONBOARDING_LEDS_API:
+            Thread(target=self.success_onboarding_lights).start()
 
     def failed(self):
         """
@@ -232,6 +234,8 @@ class LEDControllerThread(Thread):
         from XOS/Maker Moments.
         """
         self.ramp_on(LEDS_FAILED_COLOUR, LEDS_SIGNAL_TIMES[0])
+        if ONBOARDING_LEDS_API:
+            Thread(target=self.failed_onboarding_lights).start()
         sleep(LEDS_SIGNAL_TIMES[1])
         self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
@@ -350,7 +354,6 @@ class TapManager:
                 log(response.text)
                 if ONBOARDING_LEDS_API:
                     self.leds.success()
-                    Thread(target=self.leds.success_onboarding_lights).start()
                 return 0
 
             if response.status_code in XOS_FAILED_RESPONSE_CODES:
@@ -362,8 +365,6 @@ class TapManager:
                     # Possible UX problem: the visitor walks away before the LEDs
                     # show the failed state.
                     self.leds.failed()
-                    if ONBOARDING_LEDS_API:
-                        Thread(target=self.leds.failed_onboarding_lights).start()
                     self.last_id_failed = False
                 return 1
 
