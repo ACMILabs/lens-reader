@@ -1,7 +1,7 @@
 import json
 import os
 from time import sleep, time
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import requests
 
@@ -80,12 +80,14 @@ def mocked_requests_post(*args, **kwargs):
         def raise_for_status(self):
             return None
 
-    if 'maker-moment' in kwargs['url']:
-        return MockResponse('{"response": "200"}', 200)
-    elif 'xos' in kwargs['url']:
-        return MockResponse('{"response": "201"}', 201)
+    response = MockResponse('["No lens matching that uid could be found."]', 400)
 
-    return MockResponse('["No lens matching that uid could be found."]', 400)
+    if 'maker-moment' in kwargs['url']:
+        response = MockResponse('{"response": "200"}', 200)
+    elif 'xos' in kwargs['url']:
+        response = MockResponse('{"response": "201"}', 201)
+
+    return response
 
 
 def test_leds_ramp_on():
