@@ -227,6 +227,8 @@ class LEDControllerThread(Thread):
         self.ramp_on(LEDS_SUCCESS_TAP_COLOUR, LEDS_SIGNAL_TIMES[0])
         if ONBOARDING_LEDS_API:
             Thread(target=self.success_onboarding_lights).start()
+        sleep(LEDS_SIGNAL_TIMES[1])
+        self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
     def failed(self):
         """
@@ -352,7 +354,8 @@ class TapManager:
             self.post_to_sentry = True
             if response.status_code == 201:
                 log(response.text)
-                if ONBOARDING_LEDS_API:
+                if not self.leds.blocked_by and ONBOARDING_LEDS_API:
+                    self.last_id_failed = False
                     self.leds.success()
                 return 0
 
@@ -414,6 +417,8 @@ class TapManager:
                 # XOS has returned a failed tap before the visitor tapped off,
                 # so show the failed LED state now.
                 self.leds.failed()
+            elif ONBOARDING_LEDS_API:
+                self.leds.success()
             self.last_id = None
             self.last_id_failed = False
             self.leds.blocked_by = None
