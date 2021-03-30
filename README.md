@@ -2,6 +2,8 @@
 
 The Lens reader runs on a Raspberry Pi 4, with an IDTech Kiosk IV reader and a strip of Adafruit DotStar LEDs attached, and is deployed via Balena.
 
+![Lens Reader CI](https://github.com/ACMILabs/lens-reader/workflows/Lens%20Reader%20CI/badge.svg)
+
 The file `runner.py` runs the `idtech` C app in the background, and processes the output of the app. The C app simply continuously prints discovered NFC tag reads to `stdout`.
 
 The Python script processes the output and POSTs 'tap' API calls to `TARGET_API_ENDPOINT`, and controls the lights attached to the RPi.
