@@ -316,7 +316,7 @@ class TapManager:
         # Tap init
         self.last_id = None
         self.last_id_time = time()
-        self.last_id_failed = False
+        self.last_id_failed = None
         self.tap_off_timer = None
         self.leds = LEDControllerThread()
         self.queue = PriorityQueue()
@@ -417,10 +417,10 @@ class TapManager:
                 # XOS has returned a failed tap before the visitor tapped off,
                 # so show the failed LED state now.
                 self.leds.failed()
-            elif ONBOARDING_LEDS_API:
+            elif self.last_id_failed is not None and ONBOARDING_LEDS_API:
                 self.leds.success()
             self.last_id = None
-            self.last_id_failed = False
+            self.last_id_failed = None
             self.leds.blocked_by = None
         elif self.leds.blocked_by == 'remote':
             # if blocked by a remote LEDs command, leave LEDs alone, and only reset
