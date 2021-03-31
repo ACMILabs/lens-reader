@@ -57,6 +57,7 @@ LEDS_CONTROL_OVERRIDE = os.getenv('LEDS_CONTROL_OVERRIDE', 'false').lower() == '
 TAP_SEND_RETRY_SECS = int(os.getenv('TAP_SEND_RETRY_SECS', '5'))
 
 XOS_FAILED_RESPONSE_CODES = [400, 404]  # 400 Lens UID not found in XOS
+TAP_SUCCESS_RESPONSE_CODES = [200, 201]  # 200 Maker Moments, 201 XOS
 
 ONBOARDING_LEDS_API = os.getenv('ONBOARDING_LEDS_API')
 ONBOARDING_LEDS_DATA_SUCCESS = os.getenv('ONBOARDING_LEDS_DATA_SUCCESS')
@@ -352,7 +353,7 @@ class TapManager:
         try:
             response = requests.post(url=TARGET_TAPS_ENDPOINT, json=tap, headers=headers, timeout=5)
             self.post_to_sentry = True
-            if response.status_code == 201:
+            if response.status_code in TAP_SUCCESS_RESPONSE_CODES:
                 log(response.text)
                 self.last_id_failed = False
                 if not self.leds.blocked_by and ONBOARDING_LEDS_API:
