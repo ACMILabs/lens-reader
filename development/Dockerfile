@@ -1,5 +1,5 @@
 # So instead we're forcing a 32-bit image.
-FROM python:3.7.2
+FROM python:3.7.4
 
 # use `install_packages` if you need to install dependencies,
 # for instance if you need git, just uncomment the line below.

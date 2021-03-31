@@ -285,8 +285,8 @@ class LEDControllerThread(Thread):
                 ))
                 sentry_sdk.capture_exception(exception)
             except (
-                    requests.exceptions.ConnectionError,
-                    requests.exceptions.Timeout
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout
             ) as connection_error:
                 log('Failed to post onboarding lights to %s: %s\n%s' % (
                     ONBOARDING_LEDS_API,
@@ -385,8 +385,8 @@ class TapManager:
             return 1
 
         except (
-                requests.exceptions.ConnectionError,
-                requests.exceptions.Timeout
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout
         ) as connection_error:
             log('Failed to post tap message to %s: %s\n%s' % (
                 TARGET_TAPS_ENDPOINT, tap, str(connection_error)
