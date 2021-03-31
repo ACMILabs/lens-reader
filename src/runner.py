@@ -354,9 +354,10 @@ class TapManager:
             self.post_to_sentry = True
             if response.status_code == 201:
                 log(response.text)
+                self.last_id_failed = False
                 if not self.leds.blocked_by and ONBOARDING_LEDS_API:
-                    self.last_id_failed = False
                     self.leds.success()
+                    self.last_id_failed = None
                 return 0
 
             if response.status_code in XOS_FAILED_RESPONSE_CODES:
@@ -368,10 +369,18 @@ class TapManager:
                     # Possible UX problem: the visitor walks away before the LEDs
                     # show the failed state.
                     self.leds.failed()
-                    self.last_id_failed = False
+                    self.last_id_failed = None
                 return 1
 
             log(response.text)
+            self.last_id_failed = True
+            if not self.leds.blocked_by:
+                # XOS returned an failed tap response not in the XOS_FAILED_RESPONSE_CODES
+                # after the visitor tapped off, so show the failed LED state asynchronously.
+                # Possible UX problem: the visitor walks away before the LEDs
+                # show the failed state.
+                self.leds.failed()
+                self.last_id_failed = None
             sentry_sdk.capture_message(response.text)
             return 1
 
@@ -418,6 +427,8 @@ class TapManager:
                 # so show the failed LED state now.
                 self.leds.failed()
             elif self.last_id_failed is not None and ONBOARDING_LEDS_API:
+                # XOS has returned a success tap before the visitor tapped off,
+                # so show the success LED state now.
                 self.leds.success()
             self.last_id = None
             self.last_id_failed = None
