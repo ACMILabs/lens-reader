@@ -7,7 +7,7 @@ import requests
 
 import src.runner
 from src.runner import LEDControllerThread, TapManager
-from src.utils import get_ip_address
+from src.utils import env_to_tuple, get_ip_address
 
 src.runner.TAP_SEND_RETRY_SECS = 0.1
 
@@ -86,6 +86,8 @@ def mocked_requests_post(*args, **kwargs):
         response = MockResponse('{"response": "200"}', 200)
     elif 'xos' in kwargs['url']:
         response = MockResponse('{"response": "201"}', 201)
+    elif '500' in kwargs['url']:
+        response = MockResponse('{"response": "502"}', 502)
 
     return response
 
@@ -222,6 +224,7 @@ def test_send_tap_or_requeue_failure():
     tap_manager = TapManager()
     assert tap_manager.queue.empty()
     new_call = MethodWrapper(tap_manager.leds.failed)
+    assert tap_manager.last_id_failed is None
     with patch.object(tap_manager.leds, 'failed', new=new_call) as fake_leds_failed:
         # add one tap to the queue
         tap_manager.last_id = '123456789'
@@ -254,15 +257,136 @@ def test_send_tap_or_requeue_failure():
 
         # simulate removing the lens
         tap_manager.tap_off()
-        assert not tap_manager.last_id_failed
+        assert tap_manager.last_id_failed is None
         assert fake_leds_failed.call_count == 0
 
         # send the tap
         return_code = tap_manager.send_tap_or_requeue()
         assert tap_manager.queue.qsize() == 0
         assert return_code == 1
+        assert tap_manager.last_id_failed is None
+        assert fake_leds_failed.call_count == 1
+
+
+@patch('requests.post', MagicMock(side_effect=mocked_requests_post))
+def test_send_tap_or_requeue_failure_unexpected_errors():
+    """
+    Test send_tap_or_requeue handles unexpected (non-400) error responses from XOS.
+    Test that the failed LEDs method is called as expected.
+    """
+    # XOS failed tap arrives before tap off
+    tap_manager = TapManager()
+    assert tap_manager.queue.empty()
+    new_call = MethodWrapper(tap_manager.leds.failed)
+    assert tap_manager.last_id_failed is None
+    with patch.object(tap_manager.leds, 'failed', new=new_call) as fake_leds_failed:
+        # Test a 502 error response
+        src.runner.TARGET_TAPS_ENDPOINT = 'https://500.acmi.net.au/api/taps/'
+        # add one tap to the queue
+        tap_manager.last_id = '123456789'
+        tap_manager.tap_on()
+        assert tap_manager.queue.qsize() == 1
+        assert tap_manager.leds.blocked_by == 'tap'
+
+        # send the tap
+        return_code = tap_manager.send_tap_or_requeue()
+        assert tap_manager.queue.qsize() == 0
+        assert return_code == 1
+        assert tap_manager.last_id_failed
+        assert fake_leds_failed.call_count == 0
+
+        # simulate removing the lens
+        tap_manager.tap_off()
         assert not tap_manager.last_id_failed
         assert fake_leds_failed.call_count == 1
+
+        src.runner.TARGET_TAPS_ENDPOINT = 'http://localhost:8000/api/taps/'
+
+    # XOS failed tap arrives after tap off
+    tap_manager = TapManager()
+    assert tap_manager.queue.empty()
+    new_call = MethodWrapper(tap_manager.leds.failed)
+    with patch.object(tap_manager.leds, 'failed', new=new_call) as fake_leds_failed:
+        # Test a 502 error response
+        src.runner.TARGET_TAPS_ENDPOINT = 'https://500.acmi.net.au/api/taps/'
+        # add one tap to the queue
+        tap_manager.last_id = '123456789'
+        tap_manager.tap_on()
+        assert tap_manager.queue.qsize() == 1
+        assert tap_manager.leds.blocked_by == 'tap'
+
+        # simulate removing the lens
+        tap_manager.tap_off()
+        assert tap_manager.last_id_failed is None
+        assert fake_leds_failed.call_count == 0
+
+        # send the tap
+        return_code = tap_manager.send_tap_or_requeue()
+        assert tap_manager.queue.qsize() == 0
+        assert return_code == 1
+        assert tap_manager.last_id_failed is None
+        assert fake_leds_failed.call_count == 1
+
+        src.runner.TARGET_TAPS_ENDPOINT = 'http://localhost:8000/api/taps/'
+
+
+@patch('requests.post', MagicMock(side_effect=mocked_requests_post))
+def test_send_tap_or_requeue_success_leds():
+    """
+    Test that the success LEDs method is called as expected.
+    """
+    src.runner.TARGET_TAPS_ENDPOINT = 'https://xos.acmi.net.au/api/taps/'
+    src.runner.ONBOARDING_LEDS_API = 'https://xos.acmi.net.au/api/fake'
+    # XOS success tap arrives before tap off
+    tap_manager = TapManager()
+    assert tap_manager.queue.empty()
+    new_call = MethodWrapper(tap_manager.leds.success)
+    assert tap_manager.last_id_failed is None
+    with patch.object(tap_manager.leds, 'success', new=new_call) as fake_leds_success:
+        # add one tap to the queue
+        tap_manager.last_id = '123456789'
+        tap_manager.tap_on()
+        assert tap_manager.queue.qsize() == 1
+        assert tap_manager.leds.blocked_by == 'tap'
+
+        # send the tap
+        return_code = tap_manager.send_tap_or_requeue()
+        assert tap_manager.queue.qsize() == 0
+        assert return_code == 0
+        assert tap_manager.last_id_failed is not None
+        assert not tap_manager.last_id_failed
+        assert fake_leds_success.call_count == 0
+
+        # simulate removing the lens
+        tap_manager.tap_off()
+        assert tap_manager.last_id_failed is None
+        assert fake_leds_success.call_count == 1
+
+    # XOS success tap arrives after tap off
+    tap_manager = TapManager()
+    assert tap_manager.queue.empty()
+    new_call = MethodWrapper(tap_manager.leds.success)
+    with patch.object(tap_manager.leds, 'success', new=new_call) as fake_leds_success:
+        # add one tap to the queue
+        tap_manager.last_id = '123456789'
+        tap_manager.tap_on()
+        assert tap_manager.queue.qsize() == 1
+        assert tap_manager.leds.blocked_by == 'tap'
+
+        # simulate removing the lens
+        tap_manager.tap_off()
+        assert tap_manager.last_id_failed is None
+        assert fake_leds_success.call_count == 0
+
+        # send the tap
+        return_code = tap_manager.send_tap_or_requeue()
+        assert tap_manager.queue.qsize() == 0
+        assert return_code == 0
+        assert tap_manager.last_id_failed is None
+        assert fake_leds_success.call_count == 1
+
+    src.runner.TARGET_TAPS_ENDPOINT = 'http://localhost:8000/api/taps/'
+    src.runner.ONBOARDING_LEDS_API = None
 
 
 @patch('requests.post', MagicMock(side_effect=requests.exceptions.ConnectionError()))
@@ -521,19 +645,22 @@ def test_toggle_lights_with_leds_control_override():
 
 
 @patch('requests.post', side_effect=MagicMock())
-def test_success_on_onboarding_lights(led_post):
+def test_success_onboarding_lights(led_post):
     """
     Test that the onboarding lights POST request is sent as expected,
     and errors are handled successfully.
     """
     leds_controller = LEDControllerThread()
-    leds_controller.success_on_onboarding_lights()
+    leds_controller.success_onboarding_lights()
     assert led_post.call_count == 0
 
     src.runner.ONBOARDING_LEDS_API = 'https://xos.acmi.net.au/api/fake'
-    src.runner.ONBOARDING_LEDS_DATA = '{}'
-    leds_controller.success_on_onboarding_lights()
+    src.runner.ONBOARDING_LEDS_DATA_SUCCESS = '{}'
+    leds_controller.success_onboarding_lights()
     assert led_post.call_count == 1
+    src.runner.ONBOARDING_LEDS_DATA_FAILED = '{}'
+    leds_controller.failed_onboarding_lights()
+    assert led_post.call_count == 2
 
 
 @patch('requests.post', MagicMock(side_effect=[
@@ -542,24 +669,34 @@ def test_success_on_onboarding_lights(led_post):
     requests.exceptions.HTTPError(),
 ]))
 @patch('sentry_sdk.capture_exception', side_effect=MagicMock())
-def test_success_on_onboarding_lights_fails_gracefully(capture_exception):
+def test_success_onboarding_lights_fails_gracefully(capture_exception):
     """
     Test that the onboarding lights POST request is sent as expected,
     and errors are handled successfully.
     """
     src.runner.ONBOARDING_LEDS_API = None
     leds_controller = LEDControllerThread()
-    leds_controller.success_on_onboarding_lights()
+    leds_controller.success_onboarding_lights()
     assert capture_exception.call_count == 0
 
     src.runner.ONBOARDING_LEDS_API = 'https://xos.acmi.net.au/api/fake'
-    src.runner.ONBOARDING_LEDS_DATA = 'not-json'
-    leds_controller.success_on_onboarding_lights()
+    src.runner.ONBOARDING_LEDS_DATA_SUCCESS = 'not-json'
+    leds_controller.success_onboarding_lights()
     assert capture_exception.call_count == 1
-    src.runner.ONBOARDING_LEDS_DATA = '{"this": "that"}'
-    leds_controller.success_on_onboarding_lights()
+    src.runner.ONBOARDING_LEDS_DATA_SUCCESS = '{"this": "that"}'
+    leds_controller.success_onboarding_lights()
     assert capture_exception.call_count == 2
-    leds_controller.success_on_onboarding_lights()
+    leds_controller.success_onboarding_lights()
     assert capture_exception.call_count == 3
-    leds_controller.success_on_onboarding_lights()
+    leds_controller.success_onboarding_lights()
     assert capture_exception.call_count == 4
+
+
+def test_env_to_tuple():
+    """
+    Test the env_to_tuple method returns the expected results.
+    """
+    os.environ['ENV_VAR'] = '1,2,3'
+    os.environ['ENV_VAR_FLOATS'] = '1.2,2.3,3.45'
+    assert env_to_tuple('ENV_VAR') == (1, 2, 3)
+    assert env_to_tuple('ENV_VAR_FLOATS') == (1.2, 2.3, 3.45)
