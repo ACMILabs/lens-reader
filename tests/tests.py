@@ -80,7 +80,14 @@ def mocked_requests_post(*args, **kwargs):
         def raise_for_status(self):
             return None
 
-    return MockResponse('["No lens matching that uid could be found."]', 400)
+    response = MockResponse('["No lens matching that uid could be found."]', 400)
+
+    if 'maker-moment' in kwargs['url']:
+        response = MockResponse('{"response": "200"}', 200)
+    elif 'xos' in kwargs['url']:
+        response = MockResponse('{"response": "201"}', 201)
+
+    return response
 
 
 def test_leds_ramp_on():
@@ -174,6 +181,35 @@ def test_send_tap_or_requeue(xos_request):
 
     assert xos_request.call_count == 2
     assert tap_manager.queue.empty()
+
+
+@patch('requests.post', MagicMock(side_effect=mocked_requests_post))
+def test_send_tap_or_requeue_success_codes():
+    """
+    Test send_tap_or_requeue handles all response codes in TAP_SUCCESS_RESPONSE_CODES.
+    """
+    tap_manager = TapManager()
+    assert tap_manager.queue.empty()
+
+    # add two taps to the queue
+    tap_manager.last_id = '123456789'
+    tap_manager.tap_on()
+    tap_manager.tap_off()
+    tap_manager.last_id = '000000000'
+    tap_manager.tap_on()
+    assert tap_manager.queue.qsize() == 2
+
+    # send the taps
+    # Mock XOS response
+    src.runner.TARGET_TAPS_ENDPOINT = 'https://xos.acmi.net.au/api/taps/'
+    assert tap_manager.send_tap_or_requeue() == 0
+    # Mock Maker Moment response
+    src.runner.TARGET_TAPS_ENDPOINT = 'https://maker-moment/api/taps/'
+    assert tap_manager.send_tap_or_requeue() == 0
+
+    assert tap_manager.queue.empty()
+    # Reset Taps endpoint
+    src.runner.TARGET_TAPS_ENDPOINT = 'http://localhost:8000/api/taps/'
 
 
 @patch('requests.post', MagicMock(side_effect=mocked_requests_post))
