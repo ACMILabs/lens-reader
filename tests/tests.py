@@ -347,15 +347,15 @@ def test_send_tap_or_requeue_success_leds():
         tap_manager.last_id = '123456789'
         tap_manager.tap_on()
         assert tap_manager.queue.qsize() == 1
-        assert tap_manager.leds.blocked_by == 'tap'
+        assert not tap_manager.leds.blocked_by
 
         # send the tap
         return_code = tap_manager.send_tap_or_requeue()
         assert tap_manager.queue.qsize() == 0
         assert return_code == 0
-        assert tap_manager.last_id_failed is not None
+        assert tap_manager.last_id_failed is None
         assert not tap_manager.last_id_failed
-        assert fake_leds_success.call_count == 0
+        assert fake_leds_success.call_count == 1
 
         # simulate removing the lens
         tap_manager.tap_off()
@@ -371,7 +371,7 @@ def test_send_tap_or_requeue_success_leds():
         tap_manager.last_id = '123456789'
         tap_manager.tap_on()
         assert tap_manager.queue.qsize() == 1
-        assert tap_manager.leds.blocked_by == 'tap'
+        assert not tap_manager.leds.blocked_by
 
         # simulate removing the lens
         tap_manager.tap_off()

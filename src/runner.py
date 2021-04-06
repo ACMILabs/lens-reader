@@ -354,8 +354,13 @@ class TapManager:
             response = requests.post(url=TARGET_TAPS_ENDPOINT, json=tap, headers=headers, timeout=5)
             self.post_to_sentry = True
             if response.status_code in TAP_SUCCESS_RESPONSE_CODES:
-                log(response.text)
+                data = response.json()
+                log(
+                    f'XOS Tap created: {data["id"]}, Lens: {data["lens_short_code"]}, '
+                    f'Collectible: {data["collectible"]["id"]}'
+                )
                 self.last_id_failed = False
+
                 if not self.leds.blocked_by and ONBOARDING_LEDS_API:
                     self.leds.success()
                     self.last_id_failed = None
@@ -413,7 +418,8 @@ class TapManager:
         if not self.leds.blocked_by:
             tap = self.create_tap(self.last_id)
             self.queue.put((tap['tap_datetime'], tap))
-            self.leds.blocked_by = 'tap'
+            if not ONBOARDING_LEDS_API:
+                self.leds.blocked_by = 'tap'
             self.leds.success_on()
         else:
             log('Tap blocked by: ', self.leds.blocked_by)
@@ -437,6 +443,8 @@ class TapManager:
         elif self.leds.blocked_by == 'remote':
             # if blocked by a remote LEDs command, leave LEDs alone, and only reset
             # last lens id so we can still receive new tap on events
+            self.last_id = None
+        elif ONBOARDING_LEDS_API:
             self.last_id = None
 
     def _reset_tap_off_timer(self):
