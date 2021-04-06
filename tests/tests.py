@@ -83,9 +83,9 @@ def mocked_requests_post(*args, **kwargs):
     response = MockResponse('["No lens matching that uid could be found."]', 400)
 
     if 'maker-moment' in kwargs['url']:
-        response = MockResponse('{"response": "200"}', 200)
+        response = MockResponse(file_to_string_strip_new_lines('data/tap.json'), 200)
     elif 'xos' in kwargs['url']:
-        response = MockResponse('{"response": "201"}', 201)
+        response = MockResponse(file_to_string_strip_new_lines('data/tap.json'), 201)
     elif '500' in kwargs['url']:
         response = MockResponse('{"response": "502"}', 502)
 
