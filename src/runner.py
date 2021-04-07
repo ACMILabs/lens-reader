@@ -225,9 +225,12 @@ class LEDControllerThread(Thread):
         """
         Ramp on animation for a sucessful Tap response from XOS/Maker Moments.
         """
-        self.ramp_on(LEDS_SUCCESS_TAP_COLOUR, LEDS_SIGNAL_TIMES[0])
+        # Turn on building LEDs
         if ONBOARDING_LEDS_API:
             Thread(target=self.success_onboarding_lights).start()
+
+        # Turn on Lens Reader LEDs
+        self.ramp_on(LEDS_SUCCESS_TAP_COLOUR, LEDS_SIGNAL_TIMES[0])
         sleep(LEDS_SIGNAL_TIMES[1])
         self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
@@ -236,10 +239,17 @@ class LEDControllerThread(Thread):
         Triggers a predefined set of colours to indicate a failed Tap response
         from XOS/Maker Moments.
         """
-        self.ramp_on(LEDS_FAILED_COLOUR, LEDS_SIGNAL_TIMES[0])
+        # Turn on building LEDs
         if ONBOARDING_LEDS_API:
             Thread(target=self.failed_onboarding_lights).start()
-        sleep(LEDS_SIGNAL_TIMES[1])
+
+        # Turn on Lens Reader LEDs
+        for _ in range(3):
+            self.ramp_on(LEDS_FAILED_COLOUR, 0.1)
+            sleep(LEDS_SIGNAL_TIMES[-1])
+            self.ramp_on(LEDS_BREATHE_COLOUR_IN, 0.1)
+            sleep(LEDS_SIGNAL_TIMES[-1])
+
         self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
     def toggle_lights(self, rgb_value, ramp_time, cross_fade):
@@ -374,7 +384,9 @@ class TapManager:
                     # so show the failed LED state asynchronously.
                     # Possible UX problem: the visitor walks away before the LEDs
                     # show the failed state.
+                    self.leds.blocked_by = 'xos'
                     self.leds.failed()
+                    self.leds.blocked_by = None
                     self.last_id_failed = None
                 return 1
 
@@ -385,7 +397,9 @@ class TapManager:
                 # after the visitor tapped off, so show the failed LED state asynchronously.
                 # Possible UX problem: the visitor walks away before the LEDs
                 # show the failed state.
+                self.leds.blocked_by = 'xos'
                 self.leds.failed()
+                self.leds.blocked_by = None
                 self.last_id_failed = None
             sentry_sdk.capture_message(response.text)
             return 1
