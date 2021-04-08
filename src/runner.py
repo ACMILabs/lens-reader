@@ -225,9 +225,12 @@ class LEDControllerThread(Thread):
         """
         Ramp on animation for a sucessful Tap response from XOS/Maker Moments.
         """
-        self.ramp_on(LEDS_SUCCESS_TAP_COLOUR, LEDS_SIGNAL_TIMES[0])
+        # Turn on building LEDs
         if ONBOARDING_LEDS_API:
             Thread(target=self.success_onboarding_lights).start()
+
+        # Turn on Lens Reader LEDs
+        self.ramp_on(LEDS_SUCCESS_TAP_COLOUR, LEDS_SIGNAL_TIMES[0])
         sleep(LEDS_SIGNAL_TIMES[1])
         self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
@@ -236,10 +239,17 @@ class LEDControllerThread(Thread):
         Triggers a predefined set of colours to indicate a failed Tap response
         from XOS/Maker Moments.
         """
-        self.ramp_on(LEDS_FAILED_COLOUR, LEDS_SIGNAL_TIMES[0])
+        # Turn on building LEDs
         if ONBOARDING_LEDS_API:
             Thread(target=self.failed_onboarding_lights).start()
-        sleep(LEDS_SIGNAL_TIMES[1])
+
+        # Turn on Lens Reader LEDs
+        for _ in range(3):
+            self.ramp_on(LEDS_FAILED_COLOUR, 0.1)
+            sleep(LEDS_SIGNAL_TIMES[-1])
+            self.ramp_on(LEDS_BREATHE_COLOUR_IN, 0.1)
+            sleep(LEDS_SIGNAL_TIMES[-1])
+
         self.ramp_off(LEDS_SIGNAL_TIMES[-1])
 
     def toggle_lights(self, rgb_value, ramp_time, cross_fade):
@@ -354,8 +364,13 @@ class TapManager:
             response = requests.post(url=TARGET_TAPS_ENDPOINT, json=tap, headers=headers, timeout=5)
             self.post_to_sentry = True
             if response.status_code in TAP_SUCCESS_RESPONSE_CODES:
-                log(response.text)
+                data = response.json()
+                log(
+                    f'XOS Tap created: {data["id"]}, Lens: {data["lens_short_code"]}, '
+                    f'Collectible: {data["collectible"]["id"]}'
+                )
                 self.last_id_failed = False
+
                 if not self.leds.blocked_by and ONBOARDING_LEDS_API:
                     self.leds.success()
                     self.last_id_failed = None
@@ -369,7 +384,9 @@ class TapManager:
                     # so show the failed LED state asynchronously.
                     # Possible UX problem: the visitor walks away before the LEDs
                     # show the failed state.
+                    self.leds.blocked_by = 'xos'
                     self.leds.failed()
+                    self.leds.blocked_by = None
                     self.last_id_failed = None
                 return 1
 
@@ -380,7 +397,9 @@ class TapManager:
                 # after the visitor tapped off, so show the failed LED state asynchronously.
                 # Possible UX problem: the visitor walks away before the LEDs
                 # show the failed state.
+                self.leds.blocked_by = 'xos'
                 self.leds.failed()
+                self.leds.blocked_by = None
                 self.last_id_failed = None
             sentry_sdk.capture_message(response.text)
             return 1
@@ -413,7 +432,8 @@ class TapManager:
         if not self.leds.blocked_by:
             tap = self.create_tap(self.last_id)
             self.queue.put((tap['tap_datetime'], tap))
-            self.leds.blocked_by = 'tap'
+            if not ONBOARDING_LEDS_API:
+                self.leds.blocked_by = 'tap'
             self.leds.success_on()
         else:
             log('Tap blocked by: ', self.leds.blocked_by)
@@ -437,6 +457,8 @@ class TapManager:
         elif self.leds.blocked_by == 'remote':
             # if blocked by a remote LEDs command, leave LEDs alone, and only reset
             # last lens id so we can still receive new tap on events
+            self.last_id = None
+        elif ONBOARDING_LEDS_API:
             self.last_id = None
 
     def _reset_tap_off_timer(self):

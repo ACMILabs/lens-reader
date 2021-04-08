@@ -1,0 +1,79 @@
+{
+    "id": 379,
+    "tap_datetime": "2021-04-07T08:43:44.202649+10:00",
+    "created_at": "2021-04-07T09:46:25.245753+10:00",
+    "lens_hash": "c422c99bb835a4864b0165e453cfa3953108771bb5c63b071b17bbfa1d406c48",
+    "lens_short_code": "m12345",
+    "experience_id": null,
+    "maker_moment": null,
+    "collectible": {
+        "id": 1,
+        "acmi_id": "tmdb-tv-62560",
+        "title": "",
+        "thumbnail": {
+            "image_url": "https://xos.acmi.net.au/fake-image.png",
+            "has_video": false
+        },
+        "slug": "mr-robot-label-title",
+        "type": "TV show",
+        "work": {
+            "id": 2,
+            "acmi_id": "tmdb-tv-62560",
+            "title": "Mr. Robot",
+            "title_annotation": "",
+            "slug": "mr-robot",
+            "creator_credit": "Kyle Bradstreet, Sam Esmail, Kor Adana and Randolph Leon",
+            "credit_line": "<p>Vernon credit line</p>",
+            "headline_credit": "US, 2015",
+            "thumbnail": {
+                "image_url": "https://xos.acmi.net.au/fake-image.png",
+                "has_video": false
+            },
+            "record_type": "work",
+            "type": "TV show",
+            "is_on_display": false,
+            "last_on_display_place": null,
+            "last_on_display_date": null,
+            "is_context_indigenous": false,
+            "material_description": "",
+            "unpublished": false,
+            "first_production_date": "2015-05-27T10:00:00+10:00",
+            "brief_description": "<p>Description for constellation</p>",
+            "constellations_primary": [
+                {
+                    "id": 1,
+                    "name": "The robot",
+                    "description": "From <b>Simon</b>."
+                }
+            ],
+            "constellations_other": [
+                {
+                    "id": 10,
+                    "name": "Empty constellation",
+                    "description": ""
+                },
+                {
+                    "id": 2,
+                    "name": "Parasite",
+                    "description": "A second constellation."
+                },
+                {
+                    "id": 5,
+                    "name": "User recommendation",
+                    "description": "A constellation with a user recommendation"
+                }
+            ],
+            "recommendations": []
+        },
+        "is_an_event": false,
+        "url_override": ""
+    },
+    "data": {
+        "lens_reader": {
+            "mac_address": "00:00:00:00:00:00",
+            "reader_ip": "192.168.1.108",
+            "reader_model": "Postman",
+            "reader_name": "Simon"
+        }
+    }
+}
