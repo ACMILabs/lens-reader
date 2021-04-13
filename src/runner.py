@@ -364,11 +364,14 @@ class TapManager:
             response = requests.post(url=TARGET_TAPS_ENDPOINT, json=tap, headers=headers, timeout=5)
             self.post_to_sentry = True
             if response.status_code in TAP_SUCCESS_RESPONSE_CODES:
-                data = response.json()
-                log(
-                    f'XOS Tap created: {data["id"]}, Lens: {data["lens_short_code"]}, '
-                    f'Collectible: {data["collectible"]["id"]}'
-                )
+                try:
+                    data = response.json()
+                    log(
+                        f'XOS Tap created: {data["id"]}, Lens: {data["lens_short_code"]}, '
+                        f'Collectible: {data["collectible"]["id"]}'
+                    )
+                except (json.decoder.JSONDecodeError, KeyError):
+                    log(response.text)
                 self.last_id_failed = False
 
                 if not self.leds.blocked_by and ONBOARDING_LEDS_API:

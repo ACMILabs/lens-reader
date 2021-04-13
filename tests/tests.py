@@ -71,11 +71,11 @@ def mocked_requests_post(*args, **kwargs):
     """
     class MockResponse:
         def __init__(self, json_data, status_code):
-            self.text = json.loads(json_data)
+            self.text = json_data
             self.status_code = status_code
 
         def json(self):
-            return self.text
+            return json.loads(self.text)
 
         def raise_for_status(self):
             return None
@@ -86,6 +86,10 @@ def mocked_requests_post(*args, **kwargs):
         response = MockResponse(file_to_string_strip_new_lines('data/tap.json'), 200)
     elif 'xos' in kwargs['url']:
         response = MockResponse(file_to_string_strip_new_lines('data/tap.json'), 201)
+    elif 'constellation-table' in kwargs['url']:
+        response = MockResponse('{"invalid JSON" = "response"}', 200)
+    elif 'valid-non-tap-response' in kwargs['url']:
+        response = MockResponse('{"response": "ok"}', 200)
     elif '500' in kwargs['url']:
         response = MockResponse('{"response": "502"}', 502)
 
@@ -199,14 +203,30 @@ def test_send_tap_or_requeue_success_codes():
     tap_manager.tap_off()
     tap_manager.last_id = '000000000'
     tap_manager.tap_on()
+    tap_manager.tap_off()
     assert tap_manager.queue.qsize() == 2
 
     # send the taps
     # Mock XOS response
     src.runner.TARGET_TAPS_ENDPOINT = 'https://xos.acmi.net.au/api/taps/'
     assert tap_manager.send_tap_or_requeue() == 0
+
     # Mock Maker Moment response
     src.runner.TARGET_TAPS_ENDPOINT = 'https://maker-moment/api/taps/'
+    assert tap_manager.send_tap_or_requeue() == 0
+
+    # Mock Constellation Table bad JSON response
+    tap_manager.last_id = '123456789'
+    tap_manager.tap_on()
+    tap_manager.tap_off()
+    src.runner.TARGET_TAPS_ENDPOINT = 'https://constellation-table/api/taps/'
+    assert tap_manager.send_tap_or_requeue() == 0
+
+    # Mock a non-tap response
+    tap_manager.last_id = '123456789'
+    tap_manager.tap_on()
+    tap_manager.tap_off()
+    src.runner.TARGET_TAPS_ENDPOINT = 'https://valid-non-tap-response/api/taps/'
     assert tap_manager.send_tap_or_requeue() == 0
 
     assert tap_manager.queue.empty()
