@@ -404,7 +404,12 @@ class TapManager:
                 self.leds.failed()
                 self.leds.blocked_by = None
                 self.last_id_failed = None
-            sentry_sdk.capture_message(response.text)
+            if self.post_to_sentry:
+                sentry_sdk.capture_message(response.text)
+                self.post_to_sentry = False
+            self.queue.put((tap['tap_datetime'], tap))
+            log('Waiting for %s seconds to retry' % TAP_SEND_RETRY_SECS)
+            sleep(TAP_SEND_RETRY_SECS)
             return 1
 
         except (

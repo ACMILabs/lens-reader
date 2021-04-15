@@ -90,8 +90,10 @@ def mocked_requests_post(*args, **kwargs):
         response = MockResponse('{"invalid JSON" = "response"}', 200)
     elif 'valid-non-tap-response' in kwargs['url']:
         response = MockResponse('{"response": "ok"}', 200)
-    elif '500' in kwargs['url']:
+    elif '502' in kwargs['url']:
         response = MockResponse('{"response": "502"}', 502)
+    elif '503' in kwargs['url']:
+        response = MockResponse('{"response": "503"}', 503)
 
     return response
 
@@ -165,8 +167,8 @@ def test_tap_on_queues_taps():
     assert tap['lens']['uid'] == '123456789'
 
 
-@patch('requests.post', side_effect=MagicMock())
-def test_send_tap_or_requeue(xos_request):
+@patch('requests.post', MagicMock(side_effect=mocked_requests_post))
+def test_send_tap_or_requeue():
     """
     Test send_tap_or_requeue takes taps from the queue and makes requests to XOS
     """
@@ -182,11 +184,11 @@ def test_send_tap_or_requeue(xos_request):
     assert tap_manager.queue.qsize() == 2
 
     # send the taps
+    src.runner.TARGET_TAPS_ENDPOINT = 'https://xos.acmi.net.au/api/taps/'
     tap_manager.send_tap_or_requeue()
     tap_manager.send_tap_or_requeue()
-
-    assert xos_request.call_count == 2
     assert tap_manager.queue.empty()
+    src.runner.TARGET_TAPS_ENDPOINT = 'http://localhost:8000/api/taps/'
 
 
 @patch('requests.post', MagicMock(side_effect=mocked_requests_post))
@@ -301,7 +303,7 @@ def test_send_tap_or_requeue_failure_unexpected_errors():
     assert tap_manager.last_id_failed is None
     with patch.object(tap_manager.leds, 'failed', new=new_call) as fake_leds_failed:
         # Test a 502 error response
-        src.runner.TARGET_TAPS_ENDPOINT = 'https://500.acmi.net.au/api/taps/'
+        src.runner.TARGET_TAPS_ENDPOINT = 'https://502.acmi.net.au/api/taps/'
         # add one tap to the queue
         tap_manager.last_id = '123456789'
         tap_manager.tap_on()
@@ -310,7 +312,7 @@ def test_send_tap_or_requeue_failure_unexpected_errors():
 
         # send the tap
         return_code = tap_manager.send_tap_or_requeue()
-        assert tap_manager.queue.qsize() == 0
+        assert tap_manager.queue.qsize() == 1
         assert return_code == 1
         assert tap_manager.last_id_failed
         assert fake_leds_failed.call_count == 0
@@ -320,6 +322,14 @@ def test_send_tap_or_requeue_failure_unexpected_errors():
         assert not tap_manager.last_id_failed
         assert fake_leds_failed.call_count == 1
 
+        # send the tap successfully
+        src.runner.TARGET_TAPS_ENDPOINT = 'https://xos.acmi.net.au/api/taps/'
+        return_code = tap_manager.send_tap_or_requeue()
+        assert tap_manager.queue.qsize() == 0
+        assert return_code == 0
+        assert tap_manager.last_id_failed is False
+        assert fake_leds_failed.call_count == 1
+
         src.runner.TARGET_TAPS_ENDPOINT = 'http://localhost:8000/api/taps/'
 
     # XOS failed tap arrives after tap off
@@ -327,8 +337,8 @@ def test_send_tap_or_requeue_failure_unexpected_errors():
     assert tap_manager.queue.empty()
     new_call = MethodWrapper(tap_manager.leds.failed)
     with patch.object(tap_manager.leds, 'failed', new=new_call) as fake_leds_failed:
-        # Test a 502 error response
-        src.runner.TARGET_TAPS_ENDPOINT = 'https://500.acmi.net.au/api/taps/'
+        # Test a 503 error response
+        src.runner.TARGET_TAPS_ENDPOINT = 'https://503.acmi.net.au/api/taps/'
         # add one tap to the queue
         tap_manager.last_id = '123456789'
         tap_manager.tap_on()
@@ -342,9 +352,17 @@ def test_send_tap_or_requeue_failure_unexpected_errors():
 
         # send the tap
         return_code = tap_manager.send_tap_or_requeue()
-        assert tap_manager.queue.qsize() == 0
+        assert tap_manager.queue.qsize() == 1
         assert return_code == 1
         assert tap_manager.last_id_failed is None
+        assert fake_leds_failed.call_count == 1
+
+        # send the tap successfully
+        src.runner.TARGET_TAPS_ENDPOINT = 'https://xos.acmi.net.au/api/taps/'
+        return_code = tap_manager.send_tap_or_requeue()
+        assert tap_manager.queue.qsize() == 0
+        assert return_code == 0
+        assert tap_manager.last_id_failed is False
         assert fake_leds_failed.call_count == 1
 
         src.runner.TARGET_TAPS_ENDPOINT = 'http://localhost:8000/api/taps/'
@@ -494,8 +512,8 @@ def test_tap_data_shape():
     assert tap['data']['lens_reader']['reader_model'] == 'IDTech Kiosk IV'
 
 
-@patch('requests.post', side_effect=MagicMock())
-def test_taps_when_leds_blocked_by_remote(xos_request):
+@patch('requests.post', MagicMock(side_effect=mocked_requests_post))
+def test_taps_when_leds_blocked_by_remote():
     """
     Test tap_on and tap_off function as expected when blocked by a remote LED request.
     """
@@ -521,8 +539,6 @@ def test_taps_when_leds_blocked_by_remote(xos_request):
     assert tap_manager.queue.qsize() == 1
 
     tap_manager.send_tap_or_requeue()
-
-    assert xos_request.call_count == 1
     assert tap_manager.queue.empty()
 
 
@@ -682,6 +698,8 @@ def test_success_onboarding_lights(led_post):
     leds_controller.failed_onboarding_lights()
     assert led_post.call_count == 2
 
+    src.runner.ONBOARDING_LEDS_API = None
+
 
 @patch('requests.post', MagicMock(side_effect=[
     requests.exceptions.ConnectionError(),
@@ -710,6 +728,8 @@ def test_success_onboarding_lights_fails_gracefully(capture_exception):
     assert capture_exception.call_count == 3
     leds_controller.success_onboarding_lights()
     assert capture_exception.call_count == 4
+
+    src.runner.ONBOARDING_LEDS_API = None
 
 
 def test_env_to_tuple():
