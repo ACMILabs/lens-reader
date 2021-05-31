@@ -508,18 +508,18 @@ class TapManager:
         Read the lines from the C interface and processes taps.
         """
         shell = True
-        popen = subprocess.Popen(CMD, cwd=FOLDER, shell=shell, stdout=subprocess.PIPE)
-        byte_string_re = r'([0-9a-fA-F]{2}:?)+'
+        with subprocess.Popen(CMD, cwd=FOLDER, shell=shell, stdout=subprocess.PIPE) as popen:
+            byte_string_re = r'([0-9a-fA-F]{2}:?)+'
 
-        while True:
-            # wait for the next line from the C interface
-            # (if there are no NFCs there will be no lines)
-            line = popen.stdout.readline().decode('utf-8')
+            while True:
+                # wait for the next line from the C interface
+                # (if there are no NFCs there will be no lines)
+                line = popen.stdout.readline().decode('utf-8')
 
-            # see if it is a tag read
-            if re.match(byte_string_re, line):
-                # We have an ID.
-                self.read_line(line)
+                # see if it is a tag read
+                if re.match(byte_string_re, line):
+                    # We have an ID.
+                    self.read_line(line)
 
 
 @app.route('/api/taps/', methods=['POST'])
