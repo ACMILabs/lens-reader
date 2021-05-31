@@ -90,6 +90,8 @@ def mocked_requests_post(*args, **kwargs):
         response = MockResponse('{"invalid JSON" = "response"}', 200)
     elif 'valid-non-tap-response' in kwargs['url']:
         response = MockResponse('{"response": "ok"}', 200)
+    elif 'lens-reader-taps-api' in kwargs['url']:
+        response = MockResponse(file_to_string_strip_new_lines('data/tap.json'), 201)
     elif '502' in kwargs['url']:
         response = MockResponse('{"response": "502"}', 502)
     elif '503' in kwargs['url']:
@@ -740,3 +742,68 @@ def test_env_to_tuple():
     os.environ['ENV_VAR_FLOATS'] = '1.2,2.3,3.45'
     assert env_to_tuple('ENV_VAR') == (1, 2, 3)
     assert env_to_tuple('ENV_VAR_FLOATS') == (1.2, 2.3, 3.45)
+
+
+@patch('requests.post', MagicMock(side_effect=mocked_requests_post))
+def test_taps_api():
+    """
+    Test the taps_endpoint route functions as expected.
+    """
+    tap_manager = src.runner.tap_manager
+    tap_manager.__init__()
+    with src.runner.app.test_client() as client:
+        src.runner.TARGET_TAPS_ENDPOINT = 'https://lens-reader-taps-api.acmi.net.au/api/taps/'
+        assert not tap_manager.leds.blocked_by
+        assert tap_manager.queue.qsize() == 0
+
+        # POST a maker moment tap to the Lens Reader API
+        data = {
+            'lens': {
+                'uid': 'abcdef123456'
+            },
+            'tap_datetime': '2021-05-31T14:46:44.202649+09:30',
+            'experience_id': 'some-experience-id',
+            'maker_moment': 3,
+            'data': {
+                'lens_reader': {
+                    'mac_address': '24:2A:C1:10:00:4',
+                    'reader_ip': '192.168.1.108',
+                    'reader_model': 'Tests',
+                    'reader_name': 'Pytest'
+                }
+            }
+        }
+        response = client.post(
+            '/api/taps/',
+            data=json.dumps(data),
+            content_type='application/json',
+        )
+        assert response.status_code == 201
+        assert json.loads(response.data)['success']
+        assert not tap_manager.leds.blocked_by
+        assert tap_manager.queue.qsize() == 0
+
+        # Test a 400 error response from XOS
+        src.runner.TARGET_TAPS_ENDPOINT = 'http://localhost:8000/api/taps/'
+        response = client.post(
+            '/api/taps/',
+            data=json.dumps(data),
+            content_type='application/json',
+        )
+        assert response.status_code == 400
+        assert not json.loads(response.data)['success']
+        assert not tap_manager.leds.blocked_by
+        assert tap_manager.queue.qsize() == 0
+
+        # Test a 503 error response from XOS re-queues the Tap
+        src.runner.TARGET_TAPS_ENDPOINT = 'https://503.acmi.net.au/api/taps/'
+        response = client.post(
+            '/api/taps/',
+            data=json.dumps(data),
+            content_type='application/json',
+        )
+        assert response.status_code == 400
+        assert not json.loads(response.data)['success']
+        assert not tap_manager.leds.blocked_by
+        assert tap_manager.queue.qsize() == 1
+        src.runner.TARGET_TAPS_ENDPOINT = 'http://localhost:8000/api/taps/'

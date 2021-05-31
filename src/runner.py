@@ -353,12 +353,14 @@ class TapManager:
             }
         }
 
-    def send_tap_or_requeue(self):
+    def send_tap_or_requeue(self, tap=None):
         """
         Get the topmost tap from the queue and try to send it.
         If XOS is unreachable, put the tap back in the queue.
+        If a Tap is handed in, send that tap rather than one from the queue.
         """
-        _, tap = self.queue.get()
+        if not tap:
+            _, tap = self.queue.get()
         headers = {'Authorization': 'Token ' + AUTH_TOKEN}
         try:
             response = requests.post(url=TARGET_TAPS_ENDPOINT, json=tap, headers=headers, timeout=5)
@@ -518,6 +520,30 @@ class TapManager:
             if re.match(byte_string_re, line):
                 # We have an ID.
                 self.read_line(line)
+
+
+@app.route('/api/taps/', methods=['POST'])
+def taps_endpoint():
+    """
+    Endpoint to accept Lens Taps which are then forwarded on to XOS.
+
+    A successful XOS response will return {"success": true}, 201
+
+    If XOS returns a failure code in XOS_FAILED_RESPONSE_CODES
+    the Tap will NOT be re-queued, and {"success": false}, 400 returned.
+
+    If XOS returns a failure code NOT in XOS_FAILED_RESPONSE_CODES
+    the Tap will be re-queued, and {"success": false}, 400 returned.
+
+    :param data: Tap data as JSON.
+    :type data: json
+    :return: Success is set True or False depending on the response from XOS
+    """
+    request_data = dict(request.get_json())
+    xos_response = tap_manager.send_tap_or_requeue(tap=request_data)
+    if xos_response == 0:
+        return json.dumps({"success": True}), 201
+    return json.dumps({"success": False}), 400
 
 
 @app.route('/api/lights/', methods=['POST'])

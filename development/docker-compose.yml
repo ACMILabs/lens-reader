@@ -12,4 +12,4 @@ services:
     volumes:
       - ../:/code
     ports:
-     - 8081:8081
+     - 8082:8082
