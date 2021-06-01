@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import requests
 
 import src.runner
-from src.runner import LEDControllerThread, TARGET_TAPS_ENDPOINT, TapManager
+from src.runner import LEDControllerThread, TapManager
 from src.utils import env_to_tuple, get_ip_address
 
 src.runner.TAP_SEND_RETRY_SECS = 0.1
@@ -293,9 +293,9 @@ def test_send_tap_or_requeue_failure():
 
 
 @patch('requests.post', MagicMock(side_effect=mocked_requests_post))
-def test_send_tap_or_requeue_failure_unexpected_errors():
+def test_send_tap_or_requeue_failure_unexpected_errors_before_tap_off():
     """
-    Test send_tap_or_requeue handles unexpected (non-400) error responses from XOS.
+    Test send_tap_or_requeue handles unexpected (non-400) error responses from XOS before tap off.
     Test that the failed LEDs method is called as expected.
     """
     # XOS failed tap arrives before tap off
@@ -335,6 +335,13 @@ def test_send_tap_or_requeue_failure_unexpected_errors():
 
         src.runner.TARGET_TAPS_ENDPOINT = 'http://localhost:8000/api/taps/'
 
+
+@patch('requests.post', MagicMock(side_effect=mocked_requests_post))
+def test_send_tap_or_requeue_failure_unexpected_errors_after_tap_off():
+    """
+    Test send_tap_or_requeue handles unexpected (non-400) error responses from XOS after tap off.
+    Test that the failed LEDs method is called as expected.
+    """
     # XOS failed tap arrives after tap off
     tap_manager = TapManager()
     assert tap_manager.queue.empty()
