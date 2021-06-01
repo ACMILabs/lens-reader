@@ -528,26 +528,18 @@ class TapManager:
 @app.route('/api/taps/', methods=['POST'])
 def taps_endpoint():
     """
-    Endpoint to accept Lens Taps which are then forwarded on to XOS.
+    Endpoint to accept Lens Taps which are then forwarded on to XOS via the tap queue.
 
-    A successful XOS response will return {"success": true}, 201
-
-    If XOS returns a failure code in XOS_FAILED_RESPONSE_CODES
-    the Tap will NOT be re-queued, and {"success": false}, 400 returned.
-
-    If XOS returns a failure code NOT in XOS_FAILED_RESPONSE_CODES
-    the Tap will be re-queued, and {"success": false}, 400 returned.
-
-    :param data: Tap data as JSON.
-    :type data: json
+    :param request_data: Tap data as JSON.
+    :type request_data: json
     :return: Success is set True unless the request_data is invalid
     """
     try:
         request_data = dict(request.get_json())
         tap_manager.queue.put((request_data['tap_datetime'], request_data, XOS_TAPS_ENDPOINT))
-        return json.dumps({"success": True}), 201
+        return json.dumps({'success': True}), 201
     except KeyError:
-        return json.dumps({"success": False, "error": "Did you include Tap data?"}), 400
+        return json.dumps({'success': False, 'error': 'Did you include Tap data?'}), 400
 
 
 @app.route('/api/lights/', methods=['POST'])
