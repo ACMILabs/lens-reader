@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import requests
 
 import src.runner
-from src.runner import LEDControllerThread, TapManager
+from src.runner import LEDControllerThread, TARGET_TAPS_ENDPOINT, TapManager
 from src.utils import env_to_tuple, get_ip_address
 
 src.runner.TAP_SEND_RETRY_SECS = 0.1
@@ -165,8 +165,9 @@ def test_tap_on_queues_taps():
     tap_manager.tap_on()
     assert tap_manager.queue.qsize() == 1
 
-    _, tap = tap_manager.queue.get()
+    _, tap, endpoint = tap_manager.queue.get()
     assert tap['lens']['uid'] == '123456789'
+    assert endpoint == src.runner.TARGET_TAPS_ENDPOINT
 
 
 @patch('requests.post', MagicMock(side_effect=mocked_requests_post))
@@ -203,34 +204,33 @@ def test_send_tap_or_requeue_success_codes():
 
     # add two taps to the queue
     tap_manager.last_id = '123456789'
+    # Mock XOS response
+    src.runner.TARGET_TAPS_ENDPOINT = 'https://xos.acmi.net.au/api/taps/'
     tap_manager.tap_on()
     tap_manager.tap_off()
     tap_manager.last_id = '000000000'
+    # Mock Maker Moment response
+    src.runner.TARGET_TAPS_ENDPOINT = 'https://maker-moment/api/taps/'
     tap_manager.tap_on()
     tap_manager.tap_off()
     assert tap_manager.queue.qsize() == 2
 
     # send the taps
-    # Mock XOS response
-    src.runner.TARGET_TAPS_ENDPOINT = 'https://xos.acmi.net.au/api/taps/'
     assert tap_manager.send_tap_or_requeue() == 0
-
-    # Mock Maker Moment response
-    src.runner.TARGET_TAPS_ENDPOINT = 'https://maker-moment/api/taps/'
     assert tap_manager.send_tap_or_requeue() == 0
 
     # Mock Constellation Table bad JSON response
     tap_manager.last_id = '123456789'
+    src.runner.TARGET_TAPS_ENDPOINT = 'https://constellation-table/api/taps/'
     tap_manager.tap_on()
     tap_manager.tap_off()
-    src.runner.TARGET_TAPS_ENDPOINT = 'https://constellation-table/api/taps/'
     assert tap_manager.send_tap_or_requeue() == 0
 
     # Mock a non-tap response
     tap_manager.last_id = '123456789'
+    src.runner.TARGET_TAPS_ENDPOINT = 'https://valid-non-tap-response/api/taps/'
     tap_manager.tap_on()
     tap_manager.tap_off()
-    src.runner.TARGET_TAPS_ENDPOINT = 'https://valid-non-tap-response/api/taps/'
     assert tap_manager.send_tap_or_requeue() == 0
 
     assert tap_manager.queue.empty()
@@ -325,7 +325,8 @@ def test_send_tap_or_requeue_failure_unexpected_errors():
         assert fake_leds_failed.call_count == 1
 
         # send the tap successfully
-        src.runner.TARGET_TAPS_ENDPOINT = 'https://xos.acmi.net.au/api/taps/'
+        _, tap, _ = tap_manager.queue.get()
+        tap_manager.queue.put((tap['tap_datetime'], tap, 'https://xos.acmi.net.au/api/taps/'))
         return_code = tap_manager.send_tap_or_requeue()
         assert tap_manager.queue.qsize() == 0
         assert return_code == 0
@@ -360,7 +361,8 @@ def test_send_tap_or_requeue_failure_unexpected_errors():
         assert fake_leds_failed.call_count == 1
 
         # send the tap successfully
-        src.runner.TARGET_TAPS_ENDPOINT = 'https://xos.acmi.net.au/api/taps/'
+        _, tap, _ = tap_manager.queue.get()
+        tap_manager.queue.put((tap['tap_datetime'], tap, 'https://xos.acmi.net.au/api/taps/'))
         return_code = tap_manager.send_tap_or_requeue()
         assert tap_manager.queue.qsize() == 0
         assert return_code == 0
@@ -447,8 +449,9 @@ def test_send_tap_or_requeue_no_network():
 
     # check that the tap was put back in the queue
     assert tap_manager.queue.qsize() == 1
-    _, tap = tap_manager.queue.get()
+    _, tap, endpoint = tap_manager.queue.get()
     assert tap['lens']['uid'] == '123456789'
+    assert endpoint == src.runner.TARGET_TAPS_ENDPOINT
 
 
 @patch('requests.post', MagicMock(side_effect=requests.exceptions.ConnectionError()))
@@ -752,7 +755,6 @@ def test_taps_api():
     tap_manager = src.runner.tap_manager
     tap_manager.__init__()
     with src.runner.app.test_client() as client:
-        src.runner.TARGET_TAPS_ENDPOINT = 'https://lens-reader-taps-api.acmi.net.au/api/taps/'
         assert not tap_manager.leds.blocked_by
         assert tap_manager.queue.qsize() == 0
 
@@ -781,29 +783,15 @@ def test_taps_api():
         assert response.status_code == 201
         assert json.loads(response.data)['success']
         assert not tap_manager.leds.blocked_by
-        assert tap_manager.queue.qsize() == 0
+        assert tap_manager.queue.qsize() == 1
 
-        # Test a 400 error response from XOS
-        src.runner.TARGET_TAPS_ENDPOINT = 'http://localhost:8000/api/taps/'
+        # POST with no data
         response = client.post(
             '/api/taps/',
-            data=json.dumps(data),
-            content_type='application/json',
-        )
-        assert response.status_code == 400
-        assert not json.loads(response.data)['success']
-        assert not tap_manager.leds.blocked_by
-        assert tap_manager.queue.qsize() == 0
-
-        # Test a 503 error response from XOS re-queues the Tap
-        src.runner.TARGET_TAPS_ENDPOINT = 'https://503.acmi.net.au/api/taps/'
-        response = client.post(
-            '/api/taps/',
-            data=json.dumps(data),
+            data=json.dumps({}),
             content_type='application/json',
         )
         assert response.status_code == 400
         assert not json.loads(response.data)['success']
         assert not tap_manager.leds.blocked_by
         assert tap_manager.queue.qsize() == 1
-        src.runner.TARGET_TAPS_ENDPOINT = 'http://localhost:8000/api/taps/'

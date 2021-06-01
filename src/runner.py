@@ -32,6 +32,7 @@ DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'
 IS_LOCAL_ENV = os.getenv('IS_LOCAL_ENV', 'false') == 'true'
 TARGET_API_ENDPOINT = os.getenv('TARGET_API_ENDPOINT', 'http://localhost:8000/api/')
 TARGET_TAPS_ENDPOINT = os.getenv('TARGET_TAPS_ENDPOINT', f'{TARGET_API_ENDPOINT}taps/')
+XOS_TAPS_ENDPOINT = os.getenv('XOS_TAPS_ENDPOINT', 'https://xos.acmi.net.au/api/taps/')
 AUTH_TOKEN = os.getenv('AUTH_TOKEN', '')
 XOS_LABEL_ID = os.getenv('XOS_LABEL_ID', '1')
 SENTRY_ID = os.getenv('SENTRY_ID')
@@ -353,17 +354,16 @@ class TapManager:
             }
         }
 
-    def send_tap_or_requeue(self, tap=None):
+    def send_tap_or_requeue(self):
         """
         Get the topmost tap from the queue and try to send it.
         If XOS is unreachable, put the tap back in the queue.
-        If a Tap is handed in, send that tap rather than one from the queue.
         """
-        if not tap:
-            _, tap = self.queue.get()
+        _, tap, endpoint = self.queue.get()
         headers = {'Authorization': 'Token ' + AUTH_TOKEN}
+
         try:
-            response = requests.post(url=TARGET_TAPS_ENDPOINT, json=tap, headers=headers, timeout=5)
+            response = requests.post(url=endpoint, json=tap, headers=headers, timeout=5)
             self.post_to_sentry = True
             if response.status_code in TAP_SUCCESS_RESPONSE_CODES:
                 try:
@@ -384,50 +384,53 @@ class TapManager:
             if response.status_code in XOS_FAILED_RESPONSE_CODES:
                 log(response.text)
                 self.last_id_failed = True
-                if not self.leds.blocked_by:
-                    # XOS returned a failed tap after the visitor tapped off,
-                    # so show the failed LED state asynchronously.
-                    # Possible UX problem: the visitor walks away before the LEDs
-                    # show the failed state.
-                    self.leds.blocked_by = 'xos'
-                    self.leds.failed()
-                    self.leds.blocked_by = None
-                    self.last_id_failed = None
+                # XOS returned a failed tap after the visitor tapped off,
+                # so show the failed LED state asynchronously.
+                # Possible UX problem: the visitor walks away before the LEDs
+                # show the failed state.
+                self.failed_led_response()
                 return 1
 
             log(response.text)
             self.last_id_failed = True
-            if not self.leds.blocked_by:
-                # XOS returned an failed tap response not in the XOS_FAILED_RESPONSE_CODES
-                # after the visitor tapped off, so show the failed LED state asynchronously.
-                # Possible UX problem: the visitor walks away before the LEDs
-                # show the failed state.
-                self.leds.blocked_by = 'xos'
-                self.leds.failed()
-                self.leds.blocked_by = None
-                self.last_id_failed = None
+            # XOS returned an failed tap response not in the XOS_FAILED_RESPONSE_CODES
+            # after the visitor tapped off, so show the failed LED state asynchronously.
+            # Possible UX problem: the visitor walks away before the LEDs
+            self.failed_led_response()
             if self.post_to_sentry:
                 sentry_sdk.capture_message(response.text)
                 self.post_to_sentry = False
-            self.queue.put((tap['tap_datetime'], tap))
+            self.queue.put((tap['tap_datetime'], tap, endpoint))
             log('Waiting for %s seconds to retry' % TAP_SEND_RETRY_SECS)
             sleep(TAP_SEND_RETRY_SECS)
             return 1
 
         except (
             requests.exceptions.ConnectionError,
-            requests.exceptions.Timeout
+            requests.exceptions.ReadTimeout,
+            requests.exceptions.Timeout,
         ) as connection_error:
             log('Failed to post tap message to %s: %s\n%s' % (
-                TARGET_TAPS_ENDPOINT, tap, str(connection_error)
+                endpoint, tap, str(connection_error)
             ))
+            self.failed_led_response()
             if self.post_to_sentry:
                 sentry_sdk.capture_exception(connection_error)
                 self.post_to_sentry = False
-            self.queue.put((tap['tap_datetime'], tap))
+            self.queue.put((tap['tap_datetime'], tap, endpoint))
             log('Waiting for %s seconds to retry' % TAP_SEND_RETRY_SECS)
             sleep(TAP_SEND_RETRY_SECS)
             return 1
+
+    def failed_led_response(self):
+        """
+        In response to a failed Tap, set the LEDs if they're not blocked.
+        """
+        if not self.leds.blocked_by:
+            self.leds.blocked_by = 'xos'
+            self.leds.failed()
+            self.leds.blocked_by = None
+            self.last_id_failed = None
 
     def send_taps(self):
         """
@@ -441,7 +444,7 @@ class TapManager:
         # turn leds on only if not being used
         if not self.leds.blocked_by:
             tap = self.create_tap(self.last_id)
-            self.queue.put((tap['tap_datetime'], tap))
+            self.queue.put((tap['tap_datetime'], tap, TARGET_TAPS_ENDPOINT))
             if not ONBOARDING_LEDS_API:
                 self.leds.blocked_by = 'tap'
             self.leds.success_on()
@@ -537,13 +540,14 @@ def taps_endpoint():
 
     :param data: Tap data as JSON.
     :type data: json
-    :return: Success is set True or False depending on the response from XOS
+    :return: Success is set True unless the request_data is invalid
     """
-    request_data = dict(request.get_json())
-    xos_response = tap_manager.send_tap_or_requeue(tap=request_data)
-    if xos_response == 0:
+    try:
+        request_data = dict(request.get_json())
+        tap_manager.queue.put((request_data['tap_datetime'], request_data, XOS_TAPS_ENDPOINT))
         return json.dumps({"success": True}), 201
-    return json.dumps({"success": False}), 400
+    except KeyError:
+        return json.dumps({"success": False, "error": "Did you include Tap data?"}), 400
 
 
 @app.route('/api/lights/', methods=['POST'])
@@ -620,6 +624,12 @@ def main():
         print(f'Onboarding LEDs API: {ONBOARDING_LEDS_API}')
         print(f'Onboarding LEDs Data Success: {ONBOARDING_LEDS_DATA_SUCCESS}')
         print(f'Onboarding LEDs Data Failed: {ONBOARDING_LEDS_DATA_FAILED}')
+        print('----------------------')
+
+    if not TARGET_TAPS_ENDPOINT == XOS_TAPS_ENDPOINT:
+        print('----------------------')
+        print(f'Target Taps endpoint: {TARGET_TAPS_ENDPOINT}')
+        print(f'Target XOS endpoint: {XOS_TAPS_ENDPOINT}')
         print('----------------------')
 
     tap_manager.leds.start()
