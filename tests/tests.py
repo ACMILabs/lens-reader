@@ -165,7 +165,7 @@ def test_tap_on_queues_taps():
     tap_manager.tap_on()
     assert tap_manager.queue.qsize() == 1
 
-    _, tap, endpoint = tap_manager.queue.get()
+    _, tap, endpoint, _ = tap_manager.queue.get()
     assert tap['lens']['uid'] == '123456789'
     assert endpoint == src.runner.TARGET_TAPS_ENDPOINT
 
@@ -325,8 +325,13 @@ def test_send_tap_or_requeue_failure_unexpected_errors_before_tap_off():
         assert fake_leds_failed.call_count == 1
 
         # send the tap successfully
-        _, tap, _ = tap_manager.queue.get()
-        tap_manager.queue.put((tap['tap_datetime'], tap, 'https://xos.acmi.net.au/api/taps/'))
+        _, tap, _, _ = tap_manager.queue.get()
+        tap_manager.queue.put((
+            tap['tap_datetime'],
+            tap,
+            'https://xos.acmi.net.au/api/taps/',
+            'api-key',
+        ))
         return_code = tap_manager.send_tap_or_requeue()
         assert tap_manager.queue.qsize() == 0
         assert return_code == 0
@@ -368,8 +373,13 @@ def test_send_tap_or_requeue_failure_unexpected_errors_after_tap_off():
         assert fake_leds_failed.call_count == 1
 
         # send the tap successfully
-        _, tap, _ = tap_manager.queue.get()
-        tap_manager.queue.put((tap['tap_datetime'], tap, 'https://xos.acmi.net.au/api/taps/'))
+        _, tap, _, _ = tap_manager.queue.get()
+        tap_manager.queue.put((
+            tap['tap_datetime'],
+            tap,
+            'https://xos.acmi.net.au/api/taps/',
+            'api-key',
+        ))
         return_code = tap_manager.send_tap_or_requeue()
         assert tap_manager.queue.qsize() == 0
         assert return_code == 0
@@ -456,7 +466,7 @@ def test_send_tap_or_requeue_no_network():
 
     # check that the tap was put back in the queue
     assert tap_manager.queue.qsize() == 1
-    _, tap, endpoint = tap_manager.queue.get()
+    _, tap, endpoint, _ = tap_manager.queue.get()
     assert tap['lens']['uid'] == '123456789'
     assert endpoint == src.runner.TARGET_TAPS_ENDPOINT
 
@@ -786,6 +796,7 @@ def test_taps_api():
             '/api/taps/',
             data=json.dumps(data),
             content_type='application/json',
+            headers={'Authorization': 'Token api-key'},
         )
         assert response.status_code == 201
         assert json.loads(response.data)['success']
@@ -797,8 +808,39 @@ def test_taps_api():
             '/api/taps/',
             data=json.dumps({}),
             content_type='application/json',
+            headers={'Authorization': 'Token api-key'},
         )
         assert response.status_code == 400
         assert not json.loads(response.data)['success']
         assert not tap_manager.leds.blocked_by
         assert tap_manager.queue.qsize() == 1
+
+        # POST with no api_key
+        response = client.post(
+            '/api/taps/',
+            data=json.dumps(data),
+            content_type='application/json',
+        )
+        assert response.status_code == 401
+        assert not json.loads(response.data)['success']
+        assert not tap_manager.leds.blocked_by
+        assert tap_manager.queue.qsize() == 1
+
+        # POST with no Lens UID
+        tap_data = dict(data)
+        response = client.post(
+            '/api/taps/',
+            data=json.dumps(tap_data.pop('lens')),
+            content_type='application/json',
+        )
+        assert response.status_code == 400
+        assert not json.loads(response.data)['success']
+        assert not tap_manager.leds.blocked_by
+        assert tap_manager.queue.qsize() == 1
+
+        # Check tap is queued as expected
+        tap_datetime, tap, endpoint, api_key = tap_manager.queue.get()
+        assert tap_datetime == data['tap_datetime']
+        assert tap == data
+        assert endpoint == src.runner.XOS_TAPS_ENDPOINT
+        assert api_key == 'api-key'
