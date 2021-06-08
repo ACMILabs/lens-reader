@@ -158,6 +158,7 @@ def test_tap_on_queues_taps():
     Test that a tap_on enqueues a tap
     """
     tap_manager = TapManager()
+    src.runner.AUTH_TOKEN = 'api-key'
     assert tap_manager.queue.empty()
 
     # add a tap to the queue
@@ -165,9 +166,10 @@ def test_tap_on_queues_taps():
     tap_manager.tap_on()
     assert tap_manager.queue.qsize() == 1
 
-    _, tap, endpoint = tap_manager.queue.get()
+    _, tap, endpoint, api_key = tap_manager.queue.get()
     assert tap['lens']['uid'] == '123456789'
     assert endpoint == src.runner.TARGET_TAPS_ENDPOINT
+    assert api_key == 'api-key'
 
 
 @patch('requests.post', MagicMock(side_effect=mocked_requests_post))
@@ -325,8 +327,13 @@ def test_send_tap_or_requeue_failure_unexpected_errors_before_tap_off():
         assert fake_leds_failed.call_count == 1
 
         # send the tap successfully
-        _, tap, _ = tap_manager.queue.get()
-        tap_manager.queue.put((tap['tap_datetime'], tap, 'https://xos.acmi.net.au/api/taps/'))
+        _, tap, _, _ = tap_manager.queue.get()
+        tap_manager.queue.put((
+            tap['tap_datetime'],
+            tap,
+            'https://xos.acmi.net.au/api/taps/',
+            'api-key',
+        ))
         return_code = tap_manager.send_tap_or_requeue()
         assert tap_manager.queue.qsize() == 0
         assert return_code == 0
@@ -368,8 +375,13 @@ def test_send_tap_or_requeue_failure_unexpected_errors_after_tap_off():
         assert fake_leds_failed.call_count == 1
 
         # send the tap successfully
-        _, tap, _ = tap_manager.queue.get()
-        tap_manager.queue.put((tap['tap_datetime'], tap, 'https://xos.acmi.net.au/api/taps/'))
+        _, tap, _, _ = tap_manager.queue.get()
+        tap_manager.queue.put((
+            tap['tap_datetime'],
+            tap,
+            'https://xos.acmi.net.au/api/taps/',
+            'api-key',
+        ))
         return_code = tap_manager.send_tap_or_requeue()
         assert tap_manager.queue.qsize() == 0
         assert return_code == 0
@@ -444,6 +456,7 @@ def test_send_tap_or_requeue_no_network():
     Test send_tap_or_requeue enqueues tap again on network failure
     """
     tap_manager = TapManager()
+    src.runner.AUTH_TOKEN = 'api-key'
     assert tap_manager.queue.empty()
 
     # add a tap to the queue
@@ -456,9 +469,11 @@ def test_send_tap_or_requeue_no_network():
 
     # check that the tap was put back in the queue
     assert tap_manager.queue.qsize() == 1
-    _, tap, endpoint = tap_manager.queue.get()
+    _, tap, endpoint, api_key = tap_manager.queue.get()
     assert tap['lens']['uid'] == '123456789'
     assert endpoint == src.runner.TARGET_TAPS_ENDPOINT
+    assert api_key == 'api-key'
+    src.runner.AUTH_TOKEN = ''
 
 
 @patch('requests.post', MagicMock(side_effect=requests.exceptions.ConnectionError()))
@@ -754,11 +769,12 @@ def test_env_to_tuple():
     assert env_to_tuple('ENV_VAR_FLOATS') == (1.2, 2.3, 3.45)
 
 
-@patch('requests.post', MagicMock(side_effect=mocked_requests_post))
+@patch('requests.post', MagicMock(side_effect=requests.exceptions.ConnectionError()))
 def test_taps_api():
     """
     Test the taps_endpoint route functions as expected.
     """
+    src.runner.AUTH_TOKEN = 'another-key'
     tap_manager = src.runner.tap_manager
     tap_manager.__init__()
     with src.runner.app.test_client() as client:
@@ -786,6 +802,7 @@ def test_taps_api():
             '/api/taps/',
             data=json.dumps(data),
             content_type='application/json',
+            headers={'Authorization': 'Token api-key'},
         )
         assert response.status_code == 201
         assert json.loads(response.data)['success']
@@ -797,8 +814,43 @@ def test_taps_api():
             '/api/taps/',
             data=json.dumps({}),
             content_type='application/json',
+            headers={'Authorization': 'Token api-key'},
         )
         assert response.status_code == 400
         assert not json.loads(response.data)['success']
         assert not tap_manager.leds.blocked_by
         assert tap_manager.queue.qsize() == 1
+
+        # POST with no api_key
+        response = client.post(
+            '/api/taps/',
+            data=json.dumps(data),
+            content_type='application/json',
+        )
+        assert response.status_code == 401
+        assert not json.loads(response.data)['success']
+        assert not tap_manager.leds.blocked_by
+        assert tap_manager.queue.qsize() == 1
+
+        # POST with no Lens UID
+        tap_data = dict(data)
+        response = client.post(
+            '/api/taps/',
+            data=json.dumps(tap_data.pop('lens')),
+            content_type='application/json',
+        )
+        assert response.status_code == 400
+        assert not json.loads(response.data)['success']
+        assert not tap_manager.leds.blocked_by
+        assert tap_manager.queue.qsize() == 1
+
+        # Try to send the tap
+        tap_manager.send_tap_or_requeue()
+
+        # Check tap is re-queued as expected
+        tap_datetime, tap, endpoint, api_key = tap_manager.queue.get()
+        assert tap_datetime == data['tap_datetime']
+        assert tap == data
+        assert endpoint == src.runner.XOS_TAPS_ENDPOINT
+        assert api_key == 'api-key'
+        assert src.runner.AUTH_TOKEN == 'another-key'

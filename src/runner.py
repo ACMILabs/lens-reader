@@ -359,8 +359,8 @@ class TapManager:
         Get the topmost tap from the queue and try to send it.
         If XOS is unreachable, put the tap back in the queue.
         """
-        _, tap, endpoint = self.queue.get()
-        headers = {'Authorization': 'Token ' + AUTH_TOKEN}
+        _, tap, endpoint, api_key = self.queue.get()
+        headers = {'Authorization': 'Token ' + api_key}
 
         try:
             response = requests.post(url=endpoint, json=tap, headers=headers, timeout=5)
@@ -400,7 +400,7 @@ class TapManager:
             if self.post_to_sentry:
                 sentry_sdk.capture_message(response.text)
                 self.post_to_sentry = False
-            self.queue.put((tap['tap_datetime'], tap, endpoint))
+            self.queue.put((tap['tap_datetime'], tap, endpoint, api_key))
             log('Waiting for %s seconds to retry' % TAP_SEND_RETRY_SECS)
             sleep(TAP_SEND_RETRY_SECS)
             return 1
@@ -417,7 +417,7 @@ class TapManager:
             if self.post_to_sentry:
                 sentry_sdk.capture_exception(connection_error)
                 self.post_to_sentry = False
-            self.queue.put((tap['tap_datetime'], tap, endpoint))
+            self.queue.put((tap['tap_datetime'], tap, endpoint, api_key))
             log('Waiting for %s seconds to retry' % TAP_SEND_RETRY_SECS)
             sleep(TAP_SEND_RETRY_SECS)
             return 1
@@ -444,7 +444,7 @@ class TapManager:
         # turn leds on only if not being used
         if not self.leds.blocked_by:
             tap = self.create_tap(self.last_id)
-            self.queue.put((tap['tap_datetime'], tap, TARGET_TAPS_ENDPOINT))
+            self.queue.put((tap['tap_datetime'], tap, TARGET_TAPS_ENDPOINT, AUTH_TOKEN))
             if not ONBOARDING_LEDS_API:
                 self.leds.blocked_by = 'tap'
             self.leds.success_on()
@@ -536,10 +536,24 @@ def taps_endpoint():
     """
     try:
         request_data = dict(request.get_json())
-        tap_manager.queue.put((request_data['tap_datetime'], request_data, XOS_TAPS_ENDPOINT))
+        api_key = request.headers.get('Authorization')
+        assert request_data['lens']['uid']
+        assert api_key
+        tap_manager.queue.put((
+            request_data['tap_datetime'],
+            request_data,
+            XOS_TAPS_ENDPOINT,
+            api_key.replace('Token ', ''),
+        ))
         return json.dumps({'success': True}), 201
     except KeyError:
-        return json.dumps({'success': False, 'error': 'Did you include Tap data?'}), 400
+        return json.dumps(
+            {'success': False, 'error': 'Did you include a Lens UID and tap datetime?'},
+        ), 400
+    except AssertionError:
+        return json.dumps(
+            {'success': False, 'error': 'Did you include an API key?'},
+        ), 401
 
 
 @app.route('/api/lights/', methods=['POST'])
