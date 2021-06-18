@@ -64,6 +64,9 @@ ONBOARDING_LEDS_API = os.getenv('ONBOARDING_LEDS_API')
 ONBOARDING_LEDS_DATA_SUCCESS = os.getenv('ONBOARDING_LEDS_DATA_SUCCESS')
 ONBOARDING_LEDS_DATA_FAILED = os.getenv('ONBOARDING_LEDS_DATA_FAILED')
 
+# Ignore UIDs less than or equal to this length
+UID_IGNORE_LENGTH = int(os.getenv('UID_IGNORE_LENGTH', '8'))
+
 if IS_OSX:
     FOLDER = './bin/mac/'
 else:
@@ -442,7 +445,7 @@ class TapManager:
     def tap_on(self):
         log(' Tap On: ', self.last_id)
         # turn leds on only if not being used
-        if not self.leds.blocked_by and len(self.last_id) > 8:
+        if not self.leds.blocked_by:
             tap = self.create_tap(self.last_id)
             self.queue.put((tap['tap_datetime'], tap, TARGET_TAPS_ENDPOINT, AUTH_TOKEN))
             if not ONBOARDING_LEDS_API:
@@ -497,14 +500,19 @@ class TapManager:
         This is called continuously while an NFC tag is present.
         """
         lens_id = self._byte_string_to_lens_id(line)
-        if lens_id != self.last_id:
-            # send a tap-off message if needed
-            if self.tap_off_timer and self.tap_off_timer.is_alive():
-                self.tap_off_timer.cancel()
-                self.tap_off()
-            self.last_id = lens_id
-            self.tap_on()
-        self._reset_tap_off_timer()
+        if len(lens_id) > UID_IGNORE_LENGTH:
+            if lens_id != self.last_id:
+                # send a tap-off message if needed
+                if self.tap_off_timer and self.tap_off_timer.is_alive():
+                    self.tap_off_timer.cancel()
+                    self.tap_off()
+                self.last_id = lens_id
+                self.tap_on()
+            self._reset_tap_off_timer()
+        else:
+            message = f'Ignoring {len(lens_id)} character UID: {lens_id}'
+            log(message)
+            sentry_sdk.capture_message(message)
 
     def process_taps(self):
         """

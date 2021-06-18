@@ -172,24 +172,25 @@ def test_tap_on_queues_taps():
     assert api_key == 'api-key'
 
 
-def test_tap_on_doesnt_queue_phone_taps():
+@patch('sentry_sdk.capture_message', side_effect=MagicMock())
+def test_tap_on_doesnt_queue_phone_taps(capture_message):
     """
     Test that a tap_on doesn't enqueue a phone tap (8 character UID)
     """
     tap_manager = TapManager()
-    src.runner.AUTH_TOKEN = 'api-key'
     assert tap_manager.queue.empty()
 
-    # a phone tap UID which is 8 characters
-    tap_manager.last_id = '12345678'
-    tap_manager.tap_on()
+    # a phone tap UID which is 8 characters as a byte string
+    uid = '04:04:A5:2C:F2'
+    tap_manager.read_line(uid)
     assert tap_manager.queue.qsize() == 0
-    tap_manager.tap_off()
+    assert capture_message.call_count == 1
 
-    # add a tap to the queue
-    tap_manager.last_id = '123456789'
-    tap_manager.tap_on()
+    # lens UID as a byte string
+    uid = '04:04:A5:2C:F2:2A:5E:80'
+    tap_manager.read_line(uid)
     assert tap_manager.queue.qsize() == 1
+    assert capture_message.call_count == 1
 
 
 @patch('requests.post', MagicMock(side_effect=mocked_requests_post))
