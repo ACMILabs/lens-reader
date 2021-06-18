@@ -510,9 +510,7 @@ class TapManager:
                 self.tap_on()
             self._reset_tap_off_timer()
         else:
-            message = f'Ignoring {len(lens_id)} character UID: {lens_id}'
-            log(message)
-            sentry_sdk.capture_message(message)
+            log(f'Ignoring {len(lens_id)} character UID: {lens_id}')
 
     def process_taps(self):
         """
