@@ -470,8 +470,8 @@ class TapManager:
             self.last_id = None
             self.last_id_failed = None
             self.leds.blocked_by = None
-        elif self.leds.blocked_by == 'remote':
-            # if blocked by a remote LEDs command, leave LEDs alone, and only reset
+        elif self.leds.blocked_by == 'remote' or self.leds.blocked_by == 'xos':
+            # if blocked by another LED command, leave LEDs alone, and only reset
             # last lens id so we can still receive new tap on events
             self.last_id = None
         elif ONBOARDING_LEDS_API:
