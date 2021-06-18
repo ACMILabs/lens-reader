@@ -442,7 +442,7 @@ class TapManager:
     def tap_on(self):
         log(' Tap On: ', self.last_id)
         # turn leds on only if not being used
-        if not self.leds.blocked_by:
+        if not self.leds.blocked_by and len(self.last_id) > 8:
             tap = self.create_tap(self.last_id)
             self.queue.put((tap['tap_datetime'], tap, TARGET_TAPS_ENDPOINT, AUTH_TOKEN))
             if not ONBOARDING_LEDS_API:

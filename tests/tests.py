@@ -172,6 +172,26 @@ def test_tap_on_queues_taps():
     assert api_key == 'api-key'
 
 
+def test_tap_on_doesnt_queue_phone_taps():
+    """
+    Test that a tap_on doesn't enqueue a phone tap (8 character UID)
+    """
+    tap_manager = TapManager()
+    src.runner.AUTH_TOKEN = 'api-key'
+    assert tap_manager.queue.empty()
+
+    # a phone tap UID which is 8 characters
+    tap_manager.last_id = '12345678'
+    tap_manager.tap_on()
+    assert tap_manager.queue.qsize() == 0
+    tap_manager.tap_off()
+
+    # add a tap to the queue
+    tap_manager.last_id = '123456789'
+    tap_manager.tap_on()
+    assert tap_manager.queue.qsize() == 1
+
+
 @patch('requests.post', MagicMock(side_effect=mocked_requests_post))
 def test_send_tap_or_requeue():
     """
