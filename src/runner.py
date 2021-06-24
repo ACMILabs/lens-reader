@@ -64,6 +64,9 @@ ONBOARDING_LEDS_API = os.getenv('ONBOARDING_LEDS_API')
 ONBOARDING_LEDS_DATA_SUCCESS = os.getenv('ONBOARDING_LEDS_DATA_SUCCESS')
 ONBOARDING_LEDS_DATA_FAILED = os.getenv('ONBOARDING_LEDS_DATA_FAILED')
 
+# Ignore UIDs less than or equal to this length
+UID_IGNORE_LENGTH = int(os.getenv('UID_IGNORE_LENGTH', '8'))
+
 if IS_OSX:
     FOLDER = './bin/mac/'
 else:
@@ -467,8 +470,8 @@ class TapManager:
             self.last_id = None
             self.last_id_failed = None
             self.leds.blocked_by = None
-        elif self.leds.blocked_by == 'remote':
-            # if blocked by a remote LEDs command, leave LEDs alone, and only reset
+        elif self.leds.blocked_by == 'remote' or self.leds.blocked_by == 'xos':
+            # if blocked by another LED command, leave LEDs alone, and only reset
             # last lens id so we can still receive new tap on events
             self.last_id = None
         elif ONBOARDING_LEDS_API:
@@ -497,14 +500,17 @@ class TapManager:
         This is called continuously while an NFC tag is present.
         """
         lens_id = self._byte_string_to_lens_id(line)
-        if lens_id != self.last_id:
-            # send a tap-off message if needed
-            if self.tap_off_timer and self.tap_off_timer.is_alive():
-                self.tap_off_timer.cancel()
-                self.tap_off()
-            self.last_id = lens_id
-            self.tap_on()
-        self._reset_tap_off_timer()
+        if len(lens_id) > UID_IGNORE_LENGTH:
+            if lens_id != self.last_id:
+                # send a tap-off message if needed
+                if self.tap_off_timer and self.tap_off_timer.is_alive():
+                    self.tap_off_timer.cancel()
+                    self.tap_off()
+                self.last_id = lens_id
+                self.tap_on()
+            self._reset_tap_off_timer()
+        else:
+            log(f'Ignoring {len(lens_id)} character UID: {lens_id}')
 
     def process_taps(self):
         """
