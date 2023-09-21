@@ -18,7 +18,7 @@ TZ = pytz.timezone(TIMEZONE)
 
 
 def log(*args):
-    print('%s: ' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'), *args)
+    print(f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: ', *args)
 
 
 # Get mac address
@@ -44,7 +44,7 @@ def get_ip_address():
         headers = {
             'Content-Type': 'application/json',
         }
-        response = requests.get(balena_api_url, headers=headers)
+        response = requests.get(balena_api_url, headers=headers, timeout=60)
         response.raise_for_status()
         ip_address = response.json().get('ip_address')
     except (

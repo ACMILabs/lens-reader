@@ -18,8 +18,9 @@ from flask import Flask, request
 from src.utils import IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ, env_to_tuple, log
 
 try:
-    import src.adafruit_dotstar as dotstar
     import board
+
+    import src.adafruit_dotstar as dotstar
 
 except (NotImplementedError, ModuleNotFoundError):  # this doesn't compile install
     pass
@@ -126,7 +127,7 @@ class LEDControllerThread(Thread):
         if self.leds:
             self.leds.fill((*colour, LEDS_BRIGHTNESS))
         else:
-            print('Setting LEDs to %s' % list(colour))
+            print(f'Setting LEDs to {list(colour)}')
 
     def ramp_on(self, target_colour, duration_s):
         """Set values to produce a fade to the ramp colour"""
@@ -288,32 +289,27 @@ class LEDControllerThread(Thread):
                     timeout=5,
                 )
                 response.raise_for_status()
-                log('Sent onboarding LED request %s %s, response: %s' % (
-                    ONBOARDING_LEDS_API,
-                    data,
-                    response.status_code,
-                ))
+                log(
+                    f'Sent onboarding LED request {ONBOARDING_LEDS_API} {data}, '
+                    f'response: {response.status_code}'
+                )
             except json.decoder.JSONDecodeError as exception:
-                log('Failed to parse JSON from string %s\n%s' % (
-                    data,
-                    str(exception),
-                ))
+                log(f'Failed to parse JSON from string {data}\n{str(exception)}')
                 sentry_sdk.capture_exception(exception)
             except (
                 requests.exceptions.ConnectionError,
                 requests.exceptions.Timeout
             ) as connection_error:
-                log('Failed to post onboarding lights to %s: %s\n%s' % (
-                    ONBOARDING_LEDS_API,
-                    data,
-                    str(connection_error),
-                ))
+                log(
+                    f'Failed to post onboarding lights to {ONBOARDING_LEDS_API}: {data}\n'
+                    f'{str(connection_error)}'
+                )
                 sentry_sdk.capture_exception(connection_error)
             except requests.HTTPError as exception:
-                log('Failed to trigger onboarding lights %s with error %s' % (
-                    ONBOARDING_LEDS_API,
-                    str(exception),
-                ))
+                log(
+                    f'Failed to trigger onboarding lights {ONBOARDING_LEDS_API} '
+                    f'with error {str(exception)}'
+                )
                 sentry_sdk.capture_exception(exception)
 
 
@@ -327,6 +323,7 @@ class TapManager:
 
     Tap Off events are currently only logged.
     """
+
     def __init__(self):
         # Tap init
         self.last_id = None
@@ -404,7 +401,7 @@ class TapManager:
                 sentry_sdk.capture_message(response.text)
                 self.post_to_sentry = False
             self.queue.put((tap['tap_datetime'], tap, endpoint, api_key))
-            log('Waiting for %s seconds to retry' % TAP_SEND_RETRY_SECS)
+            log(f'Waiting for {TAP_SEND_RETRY_SECS} seconds to retry')
             sleep(TAP_SEND_RETRY_SECS)
             return 1
 
@@ -413,15 +410,13 @@ class TapManager:
             requests.exceptions.ReadTimeout,
             requests.exceptions.Timeout,
         ) as connection_error:
-            log('Failed to post tap message to %s: %s\n%s' % (
-                endpoint, tap, str(connection_error)
-            ))
+            log(f'Failed to post tap message to {endpoint}: {tap}\n{str(connection_error)}')
             self.failed_led_response()
             if self.post_to_sentry:
                 sentry_sdk.capture_exception(connection_error)
                 self.post_to_sentry = False
             self.queue.put((tap['tap_datetime'], tap, endpoint, api_key))
-            log('Waiting for %s seconds to retry' % TAP_SEND_RETRY_SECS)
+            log(f'Waiting for {TAP_SEND_RETRY_SECS} seconds to retry')
             sleep(TAP_SEND_RETRY_SECS)
             return 1
 
@@ -470,7 +465,7 @@ class TapManager:
             self.last_id = None
             self.last_id_failed = None
             self.leds.blocked_by = None
-        elif self.leds.blocked_by == 'remote' or self.leds.blocked_by == 'xos':
+        elif self.leds.blocked_by in ('remote', 'xos'):
             # if blocked by another LED command, leave LEDs alone, and only reset
             # last lens id so we can still receive new tap on events
             self.last_id = None
