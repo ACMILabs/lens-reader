@@ -37,7 +37,7 @@ def file_to_string_strip_new_lines(filename):
     file_as_string = ""
 
     # open filename assuming filename is relative to current working directory
-    with open(os.path.join(cwd, filename), 'r') as file_obj:
+    with open(os.path.join(cwd, filename), 'r', encoding='utf-8') as file_obj:
         # strip new line characters
         file_as_string = file_obj.read().replace('\n', '')
     # return string
@@ -592,16 +592,16 @@ def test_toggle_lights():
     Test the toggle_lights route.
     """
     tap_manager = src.runner.tap_manager
-    tap_manager.__init__()
+    tap_manager.__init__()  # pylint: disable=unnecessary-dunder-call
     with src.runner.app.test_client() as client:
         assert not tap_manager.leds.blocked_by
 
         # turn on LEDs
-        data = dict(
-            rgb_value=[5, 25, 25],
-            ramp_time=0.5,
-            cross_fade=1.0,
-        )
+        data = {
+            'rgb_value': [5, 25, 25],
+            'ramp_time': 0.5,
+            'cross_fade': 1.0,
+        }
         response = client.post(
             '/api/lights/',
             data=json.dumps(data),
@@ -620,11 +620,11 @@ def test_toggle_lights():
         assert tap_manager.queue.qsize() == 0
 
         # turn off LEDs
-        data = dict(
-            rgb_value=[5, 25, 25],
-            ramp_time=0.5,
-            cross_fade=0.0,
-        )
+        data = {
+            'rgb_value': [5, 25, 25],
+            'ramp_time': 0.5,
+            'cross_fade': 0.0,
+        }
         response = client.post(
             '/api/lights/',
             data=json.dumps(data),
@@ -646,7 +646,7 @@ def test_toggle_lights_without_leds_control_override():
     the LEDS_CONTROL_OVERRIDE flag isn't set.
     """
     tap_manager = src.runner.tap_manager
-    tap_manager.__init__()
+    tap_manager.__init__()  # pylint: disable=unnecessary-dunder-call
     with src.runner.app.test_client() as client:
         assert not tap_manager.leds.blocked_by
 
@@ -656,11 +656,11 @@ def test_toggle_lights_without_leds_control_override():
         assert tap_manager.queue.qsize() == 1
 
         # turn on LEDs
-        data = dict(
-            rgb_value=[5, 25, 25],
-            ramp_time=0.5,
-            cross_fade=1.0,
-        )
+        data = {
+            'rgb_value': [5, 25, 25],
+            'ramp_time': 0.5,
+            'cross_fade': 1.0,
+        }
         response = client.post(
             '/api/lights/',
             data=json.dumps(data),
@@ -678,7 +678,7 @@ def test_toggle_lights_with_leds_control_override():
     """
     src.runner.LEDS_CONTROL_OVERRIDE = True
     tap_manager = src.runner.tap_manager
-    tap_manager.__init__()
+    tap_manager.__init__()  # pylint: disable=unnecessary-dunder-call
     with src.runner.app.test_client() as client:
         assert not tap_manager.leds.blocked_by
 
@@ -688,11 +688,11 @@ def test_toggle_lights_with_leds_control_override():
         assert tap_manager.queue.qsize() == 1
 
         # turn on LEDs
-        data = dict(
-            rgb_value=[5, 25, 25],
-            ramp_time=0.5,
-            cross_fade=1.0,
-        )
+        data = {
+            'rgb_value': [5, 25, 25],
+            'ramp_time': 0.5,
+            'cross_fade': 1.0,
+        }
         response = client.post(
             '/api/lights/',
             data=json.dumps(data),
@@ -705,11 +705,11 @@ def test_toggle_lights_with_leds_control_override():
         assert tap_manager.leds.ramp_duration == data['ramp_time']
 
         # turn off LEDs
-        data = dict(
-            rgb_value=[5, 25, 25],
-            ramp_time=0.5,
-            cross_fade=0.0,
-        )
+        data = {
+            'rgb_value': [5, 25, 25],
+            'ramp_time': 0.5,
+            'cross_fade': 0.0,
+        }
         response = client.post(
             '/api/lights/',
             data=json.dumps(data),
@@ -794,7 +794,7 @@ def test_taps_api():
     """
     src.runner.AUTH_TOKEN = 'another-key'
     tap_manager = src.runner.tap_manager
-    tap_manager.__init__()
+    tap_manager.__init__()  # pylint: disable=unnecessary-dunder-call
     with src.runner.app.test_client() as client:
         assert not tap_manager.leds.blocked_by
         assert tap_manager.queue.qsize() == 0
