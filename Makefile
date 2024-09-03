@@ -16,7 +16,7 @@ lint:
 	isort -rc --check-only .
 test:
 	# Run python tests
-	env `cat /code/config.tmpl.env | xargs` pytest -v
+	env `cat /code/config.tmpl.env | xargs` pytest -v -s
 lintjs:
 	# Lint the javascript code
 	npm run lint

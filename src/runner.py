@@ -11,8 +11,10 @@ from queue import PriorityQueue
 from threading import Thread, Timer
 from time import sleep, time
 
+import de2120_barcode_scanner
 import requests
 import sentry_sdk
+import serial
 from flask import Flask, request
 
 from src.utils import IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ, env_to_tuple, log
@@ -494,8 +496,14 @@ class TapManager:
         """
         This is called continuously while an NFC tag is present.
         """
-        lens_id = self._byte_string_to_lens_id(line)
-        if len(lens_id) > UID_IGNORE_LENGTH:
+        lens_id = ''
+        barcode_reader = 'de2120' in READER_MODEL.lower()
+        if barcode_reader:
+            lens_id = line.replace('https://lens.acmi.net.au/', '')
+        else:
+            lens_id = self._byte_string_to_lens_id(line)
+
+        if len(lens_id) > UID_IGNORE_LENGTH or barcode_reader:
             if lens_id != self.last_id:
                 # send a tap-off message if needed
                 if self.tap_off_timer and self.tap_off_timer.is_alive():
@@ -509,21 +517,43 @@ class TapManager:
 
     def process_taps(self):
         """
-        Read the lines from the C interface and processes taps.
+        Read the lines from the C interface or barcode reader and processes taps.
         """
-        shell = True
-        with subprocess.Popen(CMD, cwd=FOLDER, shell=shell, stdout=subprocess.PIPE) as popen:
-            byte_string_re = r'([0-9a-fA-F]{2}:?)+'
+        if 'de2120' in READER_MODEL.lower():
+            scan_buffer = None
+            scanner = None
+            try:
+                scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
 
-            while True:
-                # wait for the next line from the C interface
-                # (if there are no NFCs there will be no lines)
-                line = popen.stdout.readline().decode('utf-8')
+                if not scanner.begin():
+                    log(f"ERROR: {READER_MODEL} isn't connected...")
+                    return
+                log(f'{READER_MODEL} connected...')
 
-                # see if it is a tag read
-                if re.match(byte_string_re, line):
-                    # We have an ID.
-                    self.read_line(line)
+                while True:
+                    scan_buffer = scanner.read_barcode()
+                    if scan_buffer:
+                        log(f'Code found: {str(scan_buffer)}')
+                        self.read_line(str(scan_buffer))
+                        scan_buffer = None
+                    time.sleep(0.02)
+            except serial.serialutil.SerialException as exception:
+                log(f'ERROR: {READER_MODEL} - {exception}')
+        else:
+            log(f'{READER_MODEL} connected...')
+            shell = True
+            with subprocess.Popen(CMD, cwd=FOLDER, shell=shell, stdout=subprocess.PIPE) as popen:
+                byte_string_re = r'([0-9a-fA-F]{2}:?)+'
+
+                while True:
+                    # wait for the next line from the C interface
+                    # (if there are no NFCs there will be no lines)
+                    line = popen.stdout.readline().decode('utf-8')
+
+                    # see if it is a tag read
+                    if re.match(byte_string_re, line):
+                        # We have an ID.
+                        self.read_line(line)
 
 
 @app.route('/api/taps/', methods=['POST'])
@@ -624,7 +654,7 @@ tap_manager = TapManager()  # pylint: disable=invalid-name
 
 def main():
     """Launcher."""
-    print('XOS Lens Reader (KioskIV)')
+    print(f'XOS Lens Reader ({READER_MODEL})')
 
     if ONBOARDING_LEDS_API:
         print('----------------------')
