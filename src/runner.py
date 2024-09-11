@@ -523,8 +523,8 @@ class TapManager:
             scan_buffer = None
             scanner = None
             try:
-                hard_port = serial.Serial('/dev/ttyAMA0', 9600, timeout=1)
-                scanner = de2120_barcode_scanner.DE2120BarcodeScanner(hard_port=hard_port)
+                # Note: to set a new scanner into USB-COM mode, scan the PORVIC barcode
+                scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
 
                 if not scanner.begin():
                     log(f"ERROR: {READER_MODEL} isn't connected...")
