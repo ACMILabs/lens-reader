@@ -534,8 +534,9 @@ class TapManager:
                 while True:
                     scan_buffer = scanner.read_barcode()
                     if scan_buffer:
-                        log(f'Code found: {str(scan_buffer)}')
-                        self.read_line(str(scan_buffer))
+                        barcode = str(scan_buffer).replace('\r', '')
+                        log(f'Code found: {barcode}')
+                        self.read_line(barcode)
                         scan_buffer = None
                     sleep(0.02)
             except serial.serialutil.SerialException as exception:
