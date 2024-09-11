@@ -523,7 +523,8 @@ class TapManager:
             scan_buffer = None
             scanner = None
             try:
-                scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+                hard_port = serial.Serial('/dev/ttyAMA0', 115200, timeout=1)
+                scanner = de2120_barcode_scanner.DE2120BarcodeScanner(hard_port=hard_port)
 
                 if not scanner.begin():
                     log(f"ERROR: {READER_MODEL} isn't connected...")
