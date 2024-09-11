@@ -530,6 +530,8 @@ class TapManager:
                     log(f"ERROR: {READER_MODEL} isn't connected...")
                     return
                 log(f'{READER_MODEL} connected...')
+                scanner.light_on()
+                scanner.reticle_on()
 
                 while True:
                     scan_buffer = scanner.read_barcode()
