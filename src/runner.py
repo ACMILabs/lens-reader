@@ -537,7 +537,7 @@ class TapManager:
                         log(f'Code found: {str(scan_buffer)}')
                         self.read_line(str(scan_buffer))
                         scan_buffer = None
-                    time.sleep(0.02)
+                    sleep(0.02)
             except serial.serialutil.SerialException as exception:
                 log(f'ERROR: {READER_MODEL} - {exception}')
         else:
