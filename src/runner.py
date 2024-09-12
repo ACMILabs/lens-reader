@@ -566,10 +566,10 @@ class TapManager:
                     log(f'ERROR: {READER_MODEL} failed setting USB mode with: {exception}')
                     sleep(1)
                 try:
-                    self.barcode_scanner.enable_motion_sense()
+                    self.barcode_scanner.enable_continuous_read()
                     sleep(1)
                 except TypeError as exception:
-                    log(f'ERROR: {READER_MODEL} failed setting motion sense mode with: {exception}')
+                    log(f'ERROR: {READER_MODEL} failed setting read mode with: {exception}')
                     sleep(1)
                 try:
                     if not self.barcode_scanner.begin():
