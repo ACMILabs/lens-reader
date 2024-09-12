@@ -525,15 +525,19 @@ class TapManager:
             try:
                 # Note: to set a new scanner into USB-COM mode, scan the PORVIC barcode
                 scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
-                scanner.light_on()
-                sleep(0.5)
-                scanner.reticle_on()
-                sleep(0.5)
-                scanner.enable_decode_beep()
-                sleep(0.5)
-                # scanner.enable_continuous_read()
-                scanner.enable_motion_sense()
-                sleep(0.5)
+                try:
+                    # scanner.light_on()
+                    # sleep(0.5)
+                    # scanner.reticle_on()
+                    # sleep(0.5)
+                    # scanner.enable_decode_beep()
+                    # sleep(0.5)
+                    # scanner.enable_continuous_read()
+                    scanner.enable_motion_sense()
+                    sleep(1)
+                except TypeError as exception:
+                    log(f"ERROR: failed {READER_MODEL} setting with: {exception}")
+                    sleep(1)
 
                 if not scanner.begin():
                     log(f"ERROR: {READER_MODEL} isn't connected...")
