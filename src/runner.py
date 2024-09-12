@@ -566,12 +566,6 @@ class TapManager:
                     log(f'ERROR: {READER_MODEL} failed setting USB mode with: {exception}')
                     sleep(1)
                 try:
-                    self.barcode_scanner.enable_continuous_read()
-                    sleep(1)
-                except TypeError as exception:
-                    log(f'ERROR: {READER_MODEL} failed setting read mode with: {exception}')
-                    sleep(1)
-                try:
                     if not self.barcode_scanner.begin():
                         log(f"ERROR: {READER_MODEL} isn't connected...")
                         return
@@ -579,6 +573,12 @@ class TapManager:
                     sleep(1)
                 except TypeError as exception:
                     log(f"ERROR: {READER_MODEL} failed begin() with: {exception}")
+                    sleep(1)
+                try:
+                    self.barcode_scanner.enable_continuous_read()
+                    sleep(1)
+                except TypeError as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting read mode with: {exception}')
                     sleep(1)
 
             except (OSError, serial.serialutil.SerialException) as exception:
