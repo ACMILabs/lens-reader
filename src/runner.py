@@ -335,6 +335,7 @@ class TapManager:
         self.leds = LEDControllerThread()
         self.queue = PriorityQueue()
         self.post_to_sentry = True
+        self.barcode_scanner = None
 
     def create_tap(self, lens_id):
         """
@@ -519,41 +520,19 @@ class TapManager:
         """
         Read the lines from the C interface or barcode reader and processes taps.
         """
-        if 'de2120' in READER_MODEL.lower():
+        if 'de2120' in READER_MODEL.lower(): # pylint: disable=too-many-nested-blocks
             scan_buffer = None
-            scanner = None
+            self.turn_on_barcode_scanner()
             try:
-                scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
-                try:
-                    scanner.USB_mode('VIC')
-                    sleep(1)
-                except TypeError as exception:
-                    log(f'ERROR: {READER_MODEL} failed setting USB mode with: {exception}')
-                    sleep(1)
-                try:
-                    scanner.enable_motion_sense()
-                    sleep(1)
-                except TypeError as exception:
-                    log(f'ERROR: {READER_MODEL} failed setting motion sense mode with: {exception}')
-                    sleep(1)
-                try:
-                    if not scanner.begin():
-                        log(f"ERROR: {READER_MODEL} isn't connected...")
-                        return
-                    log(f'{READER_MODEL} connected...')
-                    sleep(1)
-                except TypeError as exception:
-                    log(f"ERROR: {READER_MODEL} failed begin() with: {exception}")
-                    sleep(1)
-
                 while True:
-                    scan_buffer = scanner.read_barcode()
-                    if scan_buffer:
-                        barcode = str(scan_buffer).replace('\r', '')
-                        if barcode:
-                            log(f'Code found: {barcode}')
-                            self.read_line(barcode)
-                            scan_buffer = None
+                    if self.barcode_scanner:
+                        scan_buffer = self.barcode_scanner.read_barcode()
+                        if scan_buffer:
+                            barcode = str(scan_buffer).replace('\r', '')
+                            if barcode:
+                                log(f'Code found: {barcode}')
+                                self.read_line(barcode)
+                                scan_buffer = None
                     sleep(0.02)
             except (OSError, serial.serialutil.SerialException) as exception:
                 log(f'ERROR: {READER_MODEL} setting up - {exception}')
@@ -572,6 +551,55 @@ class TapManager:
                     if re.match(byte_string_re, line):
                         # We have an ID.
                         self.read_line(line)
+
+    def turn_on_barcode_scanner(self):
+        """
+        Turn on the Sparkfun DE2120 barcode scanner.
+        """
+        if 'de2120' in READER_MODEL.lower():
+            try:
+                self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+                try:
+                    self.barcode_scanner.USB_mode('VIC')
+                    sleep(1)
+                except TypeError as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting USB mode with: {exception}')
+                    sleep(1)
+                try:
+                    self.barcode_scanner.enable_motion_sense()
+                    sleep(1)
+                except TypeError as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting motion sense mode with: {exception}')
+                    sleep(1)
+                try:
+                    if not self.barcode_scanner.begin():
+                        log(f"ERROR: {READER_MODEL} isn't connected...")
+                        return
+                    log(f'{READER_MODEL} connected...')
+                    sleep(1)
+                except TypeError as exception:
+                    log(f"ERROR: {READER_MODEL} failed begin() with: {exception}")
+                    sleep(1)
+
+            except (OSError, serial.serialutil.SerialException) as exception:
+                log(f'ERROR: {READER_MODEL} turning on - {exception}')
+
+    def turn_off_barcode_scanner(self):
+        """
+        Turn off the Sparkfun DE2120 barcode scanner.
+        """
+        if 'de2120' in READER_MODEL.lower():
+            try:
+                self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+                try:
+                    self.barcode_scanner.enable_manual_trigger()
+                    sleep(1)
+                except TypeError as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting manual scan mode with: {exception}')
+                    sleep(1)
+
+            except (OSError, serial.serialutil.SerialException) as exception:
+                log(f'ERROR: {READER_MODEL} turning off - {exception}')
 
 
 @app.route('/api/taps/', methods=['POST'])
@@ -630,6 +658,7 @@ def toggle_lights():
             # the Lens Reader must have LEDS_CONTROL_OVERRIDE set true to enable
             # the reader to force tap-off, and control the LEDs
             tap_manager.tap_off()
+            tap_manager.turn_on_barcode_scanner()
         else:
             # Normal behaviour, don't interrupt a Lens tap/response, so:
             # ensure we are turning off a previous remote toggle
@@ -640,11 +669,13 @@ def toggle_lights():
         if cross_fade > 0.0:
             # block taps and LED events
             tap_manager.leds.blocked_by = 'remote'
+            tap_manager.turn_off_barcode_scanner()
         else:
             # reset ready for more taps
             tap_manager.last_id = None
             tap_manager.leds.success_off()
             tap_manager.leds.blocked_by = None
+            tap_manager.turn_on_barcode_scanner()
 
         tap_manager.leds.toggle_lights(rgb_value, ramp_time, cross_fade)
         return 'Leds toggled successfully.', 200
