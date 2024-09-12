@@ -529,14 +529,14 @@ class TapManager:
                     sleep(1)
                     scanner.enable_motion_sense()
                     sleep(1)
+                    if not scanner.begin():
+                        log(f"ERROR: {READER_MODEL} isn't connected...")
+                        return
+                    log(f'{READER_MODEL} connected...')
+                    sleep(1)
                 except TypeError as exception:
                     log(f"ERROR: failed {READER_MODEL} setting with: {exception}")
                     sleep(1)
-
-                if not scanner.begin():
-                    log(f"ERROR: {READER_MODEL} isn't connected...")
-                    return
-                log(f'{READER_MODEL} connected...')
 
                 while True:
                     scan_buffer = scanner.read_barcode()
@@ -546,8 +546,8 @@ class TapManager:
                         self.read_line(barcode)
                         scan_buffer = None
                     sleep(0.02)
-            except serial.serialutil.SerialException as exception:
-                log(f'ERROR: {READER_MODEL} - {exception}')
+            except (OSError, serial.serialutil.SerialException) as exception:
+                log(f'ERROR: {READER_MODEL} setting up - {exception}')
         else:
             log(f'{READER_MODEL} connected...')
             shell = True
