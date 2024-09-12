@@ -315,7 +315,7 @@ class LEDControllerThread(Thread):
                 sentry_sdk.capture_exception(exception)
 
 
-class TapManager:
+class TapManager:  # pylint: disable=too-many-instance-attributes
     """
     TapManager processes continuous messages from the idtech C code,
     in order to detect tap on and tap off events.
@@ -520,7 +520,7 @@ class TapManager:
         """
         Read the lines from the C interface or barcode reader and processes taps.
         """
-        if 'de2120' in READER_MODEL.lower(): # pylint: disable=too-many-nested-blocks
+        if 'de2120' in READER_MODEL.lower():  # pylint: disable=too-many-nested-blocks
             scan_buffer = None
             self.turn_on_barcode_scanner()
             try:
