@@ -575,16 +575,22 @@ class TapManager:
                     log(f"ERROR: {READER_MODEL} failed begin() with: {exception}")
                     sleep(1)
                 try:
-                    self.barcode_scanner.enable_motion_sense()
-                    sleep(1)
-                except TypeError as exception:
-                    log(f'ERROR: {READER_MODEL} failed setting motion mode with: {exception}')
-                    sleep(1)
-                try:
                     self.barcode_scanner.enable_continuous_read()
                     sleep(1)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting read mode with: {exception}')
+                    sleep(1)
+                try:
+                    self.barcode_scanner.light_on()
+                    sleep(1)
+                except TypeError as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting light on with: {exception}')
+                    sleep(1)
+                try:
+                    self.barcode_scanner.reticle_on()
+                    sleep(1)
+                except TypeError as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting red bar on with: {exception}')
                     sleep(1)
 
             except (OSError, serial.serialutil.SerialException) as exception:
