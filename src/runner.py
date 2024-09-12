@@ -527,24 +527,33 @@ class TapManager:
                 try:
                     scanner.USB_mode('VIC')
                     sleep(1)
+                except TypeError as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting USB mode with: {exception}')
+                    sleep(1)
+                try:
                     scanner.enable_motion_sense()
                     sleep(1)
+                except TypeError as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting motion sense mode with: {exception}')
+                    sleep(1)
+                try:
                     if not scanner.begin():
                         log(f"ERROR: {READER_MODEL} isn't connected...")
                         return
                     log(f'{READER_MODEL} connected...')
                     sleep(1)
                 except TypeError as exception:
-                    log(f"ERROR: failed {READER_MODEL} setting with: {exception}")
+                    log(f"ERROR: {READER_MODEL} failed begin() with: {exception}")
                     sleep(1)
 
                 while True:
                     scan_buffer = scanner.read_barcode()
                     if scan_buffer:
                         barcode = str(scan_buffer).replace('\r', '')
-                        log(f'Code found: {barcode}')
-                        self.read_line(barcode)
-                        scan_buffer = None
+                        if barcode:
+                            log(f'Code found: {barcode}')
+                            self.read_line(barcode)
+                            scan_buffer = None
                     sleep(0.02)
             except (OSError, serial.serialutil.SerialException) as exception:
                 log(f'ERROR: {READER_MODEL} setting up - {exception}')
