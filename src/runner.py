@@ -528,7 +528,7 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                     if self.barcode_scanner:
                         scan_buffer = self.barcode_scanner.read_barcode()
                         if scan_buffer:
-                            barcode = str(scan_buffer).replace('\r', '')
+                            barcode = str(scan_buffer).replace('\r', '').replace('\x06', '')
                             if barcode:
                                 log(f'Code found: {barcode}')
                                 self.read_line(barcode)
