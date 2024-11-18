@@ -561,28 +561,40 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                 self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
                 try:
                     self.barcode_scanner.USB_mode('VIC')
-                    sleep(0.5)
+                    sleep(1.0)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting USB mode with: {exception}')
-                    sleep(0.5)
+                    sleep(1.0)
                 try:
                     self.barcode_scanner.enable_motion_sense()
-                    sleep(0.5)
+                    sleep(1.0)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting motion mode with: {exception}')
-                    sleep(0.5)
+                    sleep(1.0)
+                try:
+                    self.barcode_scanner.enable_continuous_read(3)
+                    sleep(1.0)
+                except TypeError as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting continuous read: {exception}')
+                    sleep(1.0)
                 try:
                     self.barcode_scanner.light_on()
-                    sleep(0.5)
+                    sleep(1.0)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting light on: {exception}')
-                    sleep(0.5)
+                    sleep(1.0)
                 try:
                     self.barcode_scanner.reticle_on()
-                    sleep(0.5)
+                    sleep(1.0)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting scan line on: {exception}')
-                    sleep(0.5)
+                    sleep(1.0)
+                try:
+                    self.barcode_scanner.enable_decode_beep()
+                    sleep(1.0)
+                except TypeError as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting beep on: {exception}')
+                    sleep(1.0)
                 try:
                     if not self.barcode_scanner.begin():
                         log(f"ERROR: {READER_MODEL} isn't connected...")
@@ -604,21 +616,57 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                 self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
                 try:
                     self.barcode_scanner.enable_manual_trigger()
-                    sleep(0.5)
+                    sleep(1.0)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting manual scan mode with: {exception}')
-                    sleep(0.5)
+                    sleep(1.0)
                 try:
                     self.barcode_scanner.light_off()
-                    sleep(0.5)
+                    sleep(1.0)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting light off: {exception}')
-                    sleep(0.5)
+                    sleep(1.0)
                 try:
                     self.barcode_scanner.reticle_off()
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting scan line off: {exception}')
-                    sleep(0.5)
+                    sleep(1.0)
+                try:
+                    self.barcode_scanner.disable_decode_beep()
+                    sleep(1.0)
+                except TypeError as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting beep on: {exception}')
+                    sleep(1.0)
+
+            except (OSError, serial.serialutil.SerialException) as exception:
+                log(f'ERROR: {READER_MODEL} turning off - {exception}')
+
+    def turn_on_barcode_beep(self):
+        """
+        Turn on the Sparkfun DE2120 barcode beep.
+        """
+        if 'de2120' in READER_MODEL.lower():
+            try:
+                self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+                try:
+                    self.barcode_scanner.enable_decode_beep()
+                except TypeError as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting beep on: {exception}')
+
+            except (OSError, serial.serialutil.SerialException) as exception:
+                log(f'ERROR: {READER_MODEL} turning off - {exception}')
+
+    def turn_off_barcode_beep(self):
+        """
+        Turn off the Sparkfun DE2120 barcode beep.
+        """
+        if 'de2120' in READER_MODEL.lower():
+            try:
+                self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+                try:
+                    self.barcode_scanner.disable_decode_beep()
+                except TypeError as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting beep off: {exception}')
 
             except (OSError, serial.serialutil.SerialException) as exception:
                 log(f'ERROR: {READER_MODEL} turning off - {exception}')
@@ -680,7 +728,7 @@ def toggle_lights():
             # the Lens Reader must have LEDS_CONTROL_OVERRIDE set true to enable
             # the reader to force tap-off, and control the LEDs
             tap_manager.tap_off()
-            tap_manager.turn_on_barcode_scanner()
+            tap_manager.turn_on_barcode_beep()
         else:
             # Normal behaviour, don't interrupt a Lens tap/response, so:
             # ensure we are turning off a previous remote toggle
@@ -691,13 +739,13 @@ def toggle_lights():
         if cross_fade > 0.0:
             # block taps and LED events
             tap_manager.leds.blocked_by = 'remote'
-            tap_manager.turn_off_barcode_scanner()
+            tap_manager.turn_off_barcode_beep()
         else:
             # reset ready for more taps
             tap_manager.last_id = None
             tap_manager.leds.success_off()
             tap_manager.leds.blocked_by = None
-            tap_manager.turn_on_barcode_scanner()
+            tap_manager.turn_on_barcode_beep()
 
         tap_manager.leds.toggle_lights(rgb_value, ramp_time, cross_fade)
         return 'Leds toggled successfully.', 200
