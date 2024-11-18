@@ -522,7 +522,7 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
         """
         if 'de2120' in READER_MODEL.lower():  # pylint: disable=too-many-nested-blocks
             scan_buffer = None
-            self.turn_on_barcode_scanner()
+            self.turn_on_barcode_scanner(set_mode=True)
             try:
                 while True:
                     if self.barcode_scanner:
@@ -552,7 +552,7 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                         # We have an ID.
                         self.read_line(line)
 
-    def turn_on_barcode_scanner(self):
+    def turn_on_barcode_scanner(self, set_mode=False):
         """
         Turn on the Sparkfun DE2120 barcode scanner.
         """
@@ -560,35 +560,36 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
             try:
                 self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
                 try:
-                    self.barcode_scanner.USB_mode('VIC')
-                    sleep(0.1)
+                    if set_mode:
+                        self.barcode_scanner.USB_mode('VIC')
+                        sleep(0.5)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting USB mode with: {exception}')
-                    sleep(0.1)
+                    sleep(0.2)
                 try:
-                    self.barcode_scanner.enable_motion_sense()
-                    sleep(0.1)
+                    if set_mode:
+                        self.barcode_scanner.enable_motion_sense()
+                        sleep(0.5)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting motion mode with: {exception}')
-                    sleep(0.1)
+                    sleep(0.2)
                 try:
                     self.barcode_scanner.light_on()
-                    sleep(0.1)
+                    sleep(0.2)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting light on: {exception}')
-                    sleep(0.1)
+                    sleep(0.2)
                 try:
                     self.barcode_scanner.reticle_on()
-                    sleep(0.1)
+                    sleep(0.2)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting scan line on: {exception}')
-                    sleep(0.1)
+                    sleep(0.2)
                 try:
                     if not self.barcode_scanner.begin():
                         log(f"ERROR: {READER_MODEL} isn't connected...")
                         return
                     log(f'{READER_MODEL} connected...')
-                    sleep(0.1)
                 except TypeError as exception:
                     log(f"ERROR: {READER_MODEL} failed begin() with: {exception}")
                     sleep(1)
@@ -596,7 +597,7 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
             except (OSError, serial.serialutil.SerialException) as exception:
                 log(f'ERROR: {READER_MODEL} turning on - {exception}')
 
-    def turn_off_barcode_scanner(self):
+    def turn_off_barcode_scanner(self, set_mode=False):
         """
         Turn off the Sparkfun DE2120 barcode scanner.
         """
@@ -604,23 +605,23 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
             try:
                 self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
                 try:
-                    self.barcode_scanner.enable_manual_trigger()
-                    sleep(0.1)
+                    if set_mode:
+                        self.barcode_scanner.enable_manual_trigger()
+                        sleep(0.2)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting manual scan mode with: {exception}')
-                    sleep(0.1)
+                    sleep(0.2)
                 try:
                     self.barcode_scanner.light_off()
-                    sleep(0.1)
+                    sleep(0.2)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting light off: {exception}')
-                    sleep(0.1)
+                    sleep(0.2)
                 try:
                     self.barcode_scanner.reticle_off()
-                    sleep(0.1)
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting scan line off: {exception}')
-                    sleep(0.1)
+                    sleep(0.2)
 
             except (OSError, serial.serialutil.SerialException) as exception:
                 log(f'ERROR: {READER_MODEL} turning off - {exception}')
