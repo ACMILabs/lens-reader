@@ -728,7 +728,7 @@ def toggle_lights():
             # the Lens Reader must have LEDS_CONTROL_OVERRIDE set true to enable
             # the reader to force tap-off, and control the LEDs
             tap_manager.tap_off()
-            # tap_manager.turn_on_barcode_beep()
+            tap_manager.turn_on_barcode_beep()
         else:
             # Normal behaviour, don't interrupt a Lens tap/response, so:
             # ensure we are turning off a previous remote toggle
@@ -739,13 +739,13 @@ def toggle_lights():
         if cross_fade > 0.0:
             # block taps and LED events
             tap_manager.leds.blocked_by = 'remote'
-            # tap_manager.turn_off_barcode_beep()
+            tap_manager.turn_off_barcode_beep()
         else:
             # reset ready for more taps
             tap_manager.last_id = None
             tap_manager.leds.success_off()
             tap_manager.leds.blocked_by = None
-            # tap_manager.turn_on_barcode_beep()
+            tap_manager.turn_on_barcode_beep()
 
         tap_manager.leds.toggle_lights(rgb_value, ramp_time, cross_fade)
         return 'Leds toggled successfully.', 200
