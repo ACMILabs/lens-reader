@@ -523,8 +523,9 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
         if 'de2120' in READER_MODEL.lower():  # pylint: disable=too-many-nested-blocks
             scan_buffer = None
             self.turn_on_barcode_scanner()
-            try:
-                while True:
+            reported = False
+            while True:
+                try:
                     if self.barcode_scanner:
                         scan_buffer = self.barcode_scanner.read_barcode()
                         if scan_buffer:
@@ -534,8 +535,11 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                                 self.read_line(barcode)
                                 scan_buffer = None
                     sleep(0.02)
-            except (OSError, serial.serialutil.SerialException) as exception:
-                log(f'ERROR: {READER_MODEL} setting up - {exception}')
+                except (OSError, serial.serialutil.SerialException) as exception:
+                    log(f'ERROR: {READER_MODEL} setting up - {exception}')
+                    if not reported:
+                        sentry_sdk.capture_exception(exception)
+                        reported = True
         else:
             log(f'{READER_MODEL} connected...')
             shell = True
@@ -552,13 +556,14 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                         # We have an ID.
                         self.read_line(line)
 
-    def turn_on_barcode_scanner(self):
+    def turn_on_barcode_scanner(self):  # pylint: disable=too-many-statements
         """
         Turn on the Sparkfun DE2120 barcode scanner.
         """
         if 'de2120' in READER_MODEL.lower():
             try:
-                self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+                if not self.barcode_scanner:
+                    self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
                 try:
                     self.barcode_scanner.USB_mode('VIC')
                     sleep(1.0)
@@ -606,6 +611,7 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
 
             except (OSError, serial.serialutil.SerialException) as exception:
                 log(f'ERROR: {READER_MODEL} turning on - {exception}')
+                sentry_sdk.capture_exception(exception)
 
     def turn_off_barcode_scanner(self):
         """
@@ -613,7 +619,8 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
         """
         if 'de2120' in READER_MODEL.lower():
             try:
-                self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+                if not self.barcode_scanner:
+                    self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
                 try:
                     self.barcode_scanner.enable_manual_trigger()
                     sleep(1.0)
@@ -640,6 +647,7 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
 
             except (OSError, serial.serialutil.SerialException) as exception:
                 log(f'ERROR: {READER_MODEL} turning off - {exception}')
+                sentry_sdk.capture_exception(exception)
 
     def turn_on_barcode_beep(self):
         """
@@ -647,14 +655,16 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
         """
         if 'de2120' in READER_MODEL.lower():
             try:
-                self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+                if not self.barcode_scanner:
+                    self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
                 try:
                     self.barcode_scanner.enable_decode_beep()
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting beep on: {exception}')
 
             except (OSError, serial.serialutil.SerialException) as exception:
-                log(f'ERROR: {READER_MODEL} turning off - {exception}')
+                log(f'ERROR: {READER_MODEL} turning beep off - {exception}')
+                sentry_sdk.capture_exception(exception)
 
     def turn_off_barcode_beep(self):
         """
@@ -662,14 +672,16 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
         """
         if 'de2120' in READER_MODEL.lower():
             try:
-                self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+                if not self.barcode_scanner:
+                    self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
                 try:
                     self.barcode_scanner.disable_decode_beep()
                 except TypeError as exception:
                     log(f'ERROR: {READER_MODEL} failed setting beep off: {exception}')
 
             except (OSError, serial.serialutil.SerialException) as exception:
-                log(f'ERROR: {READER_MODEL} turning off - {exception}')
+                log(f'ERROR: {READER_MODEL} turning beep off - {exception}')
+                sentry_sdk.capture_exception(exception)
 
 
 @app.route('/api/taps/', methods=['POST'])
