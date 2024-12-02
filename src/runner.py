@@ -580,37 +580,37 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                 try:
                     self.barcode_scanner.USB_mode('VIC')
                     sleep(1.0)
-                except TypeError as exception:
+                except (serial.serialutil.SerialException, TypeError) as exception:
                     log(f'ERROR: {READER_MODEL} failed setting USB mode with: {exception}')
                     sleep(1.0)
                 try:
                     self.barcode_scanner.enable_motion_sense()
                     sleep(1.0)
-                except TypeError as exception:
+                except (serial.serialutil.SerialException, TypeError) as exception:
                     log(f'ERROR: {READER_MODEL} failed setting motion mode with: {exception}')
                     sleep(1.0)
                 try:
                     self.barcode_scanner.enable_continuous_read(3)
                     sleep(1.0)
-                except TypeError as exception:
+                except (serial.serialutil.SerialException, TypeError) as exception:
                     log(f'ERROR: {READER_MODEL} failed setting continuous read: {exception}')
                     sleep(1.0)
                 try:
                     self.barcode_scanner.light_on()
                     sleep(1.0)
-                except TypeError as exception:
+                except (serial.serialutil.SerialException, TypeError) as exception:
                     log(f'ERROR: {READER_MODEL} failed setting light on: {exception}')
                     sleep(1.0)
                 try:
                     self.barcode_scanner.reticle_on()
                     sleep(1.0)
-                except TypeError as exception:
+                except (serial.serialutil.SerialException, TypeError) as exception:
                     log(f'ERROR: {READER_MODEL} failed setting scan line on: {exception}')
                     sleep(1.0)
                 try:
                     self.barcode_scanner.enable_decode_beep()
                     sleep(1.0)
-                except TypeError as exception:
+                except (serial.serialutil.SerialException, TypeError) as exception:
                     log(f'ERROR: {READER_MODEL} failed setting beep on: {exception}')
                     sleep(1.0)
                 try:
@@ -618,7 +618,7 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                         log(f"ERROR: {READER_MODEL} isn't connected...")
                         return
                     log(f'{READER_MODEL} connected...')
-                except TypeError as exception:
+                except (serial.serialutil.SerialException, TypeError) as exception:
                     log(f"ERROR: {READER_MODEL} failed begin() with: {exception}")
                     sleep(1)
 
@@ -637,24 +637,24 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                 try:
                     self.barcode_scanner.enable_manual_trigger()
                     sleep(1.0)
-                except TypeError as exception:
+                except (serial.serialutil.SerialException, TypeError) as exception:
                     log(f'ERROR: {READER_MODEL} failed setting manual scan mode with: {exception}')
                     sleep(1.0)
                 try:
                     self.barcode_scanner.light_off()
                     sleep(1.0)
-                except TypeError as exception:
+                except (serial.serialutil.SerialException, TypeError) as exception:
                     log(f'ERROR: {READER_MODEL} failed setting light off: {exception}')
                     sleep(1.0)
                 try:
                     self.barcode_scanner.reticle_off()
-                except TypeError as exception:
+                except (serial.serialutil.SerialException, TypeError) as exception:
                     log(f'ERROR: {READER_MODEL} failed setting scan line off: {exception}')
                     sleep(1.0)
                 try:
                     self.barcode_scanner.disable_decode_beep()
                     sleep(1.0)
-                except TypeError as exception:
+                except (serial.serialutil.SerialException, TypeError) as exception:
                     log(f'ERROR: {READER_MODEL} failed setting beep on: {exception}')
                     sleep(1.0)
 
@@ -672,7 +672,7 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                     self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
                 try:
                     self.barcode_scanner.enable_decode_beep()
-                except TypeError as exception:
+                except (serial.serialutil.SerialException, TypeError) as exception:
                     log(f'ERROR: {READER_MODEL} failed setting beep on: {exception}')
 
             except (OSError, serial.serialutil.SerialException) as exception:
@@ -689,7 +689,7 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                     self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
                 try:
                     self.barcode_scanner.disable_decode_beep()
-                except TypeError as exception:
+                except (serial.serialutil.SerialException, TypeError) as exception:
                     log(f'ERROR: {READER_MODEL} failed setting beep off: {exception}')
 
             except (OSError, serial.serialutil.SerialException) as exception:
