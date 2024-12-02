@@ -544,8 +544,12 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                                 self.read_line(barcode)
                                 scan_buffer = None
                     sleep(0.02)
-                except (OSError, serial.serialutil.SerialException) as exception:
-                    log(f'ERROR: {READER_MODEL} setting up - {exception}')
+                except (
+                    OSError,
+                    serial.serialutil.SerialException,
+                    UnicodeDecodeError,
+                ) as exception:
+                    log(f'ERROR: {READER_MODEL} reading barcode - {exception}')
                     if not reported:
                         sentry_sdk.capture_exception(exception)
                         reported = True
