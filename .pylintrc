@@ -11,7 +11,7 @@ ignore=CVS, migrations, settings, venv, Makefile, Dockerfile, Dockerfile.templat
 
 # Add files or directories matching the regex patterns to the blacklist. The
 # regex matches against base names, not paths.
-ignore-patterns=.*\.env$, .*\.yml$, .*\.pyc$, .*\.sh$, .*\.md$, .*\.rst$, .*\.txt$, .*\.ini$, .*\.db$, .*\.db-journal$, .*\.json$
+ignore-patterns=.*\.env$, .*\.yml$, .*\.pyc$, .*\.sh$, .*\.md$, .*\.rst$, .*\.txt$, .*\.ini$, .*\.db$, .*\.db-journal$, .*\.json$, .*\.png$
 
 # Python code to execute, usually for sys.path manipulation such as
 # pygtk.require().

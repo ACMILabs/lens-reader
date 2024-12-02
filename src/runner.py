@@ -11,8 +11,10 @@ from queue import PriorityQueue
 from threading import Thread, Timer
 from time import sleep, time
 
+import de2120_barcode_scanner
 import requests
 import sentry_sdk
+import serial
 from flask import Flask, request
 
 from src.utils import IP_ADDRESS, IS_OSX, MAC_ADDRESS, TZ, env_to_tuple, log
@@ -313,7 +315,7 @@ class LEDControllerThread(Thread):
                 sentry_sdk.capture_exception(exception)
 
 
-class TapManager:
+class TapManager:  # pylint: disable=too-many-instance-attributes
     """
     TapManager processes continuous messages from the idtech C code,
     in order to detect tap on and tap off events.
@@ -333,6 +335,7 @@ class TapManager:
         self.leds = LEDControllerThread()
         self.queue = PriorityQueue()
         self.post_to_sentry = True
+        self.barcode_scanner = None
 
     def create_tap(self, lens_id):
         """
@@ -359,12 +362,20 @@ class TapManager:
         Get the topmost tap from the queue and try to send it.
         If XOS is unreachable, put the tap back in the queue.
         """
-        _, tap, endpoint, api_key = self.queue.get()
-        headers = {'Authorization': 'Token ' + api_key}
+        try:
+            _, tap, endpoint, api_key = self.queue.get()
+            headers = {'Authorization': 'Token ' + api_key}
+        except TypeError as exception:
+            log(f'Failed to get tap from queue: {exception}')
+            if self.post_to_sentry:
+                sentry_sdk.capture_exception(exception)
+                self.post_to_sentry = False
+            log(f'Waiting for {TAP_SEND_RETRY_SECS} seconds to retry')
+            sleep(TAP_SEND_RETRY_SECS)
+            return 1
 
         try:
             response = requests.post(url=endpoint, json=tap, headers=headers, timeout=5)
-            self.post_to_sentry = True
             if response.status_code in TAP_SUCCESS_RESPONSE_CODES:
                 try:
                     data = response.json()
@@ -379,6 +390,7 @@ class TapManager:
                 if not self.leds.blocked_by and ONBOARDING_LEDS_API:
                     self.leds.success()
                     self.last_id_failed = None
+                self.post_to_sentry = True
                 return 0
 
             if response.status_code in XOS_FAILED_RESPONSE_CODES:
@@ -494,8 +506,14 @@ class TapManager:
         """
         This is called continuously while an NFC tag is present.
         """
-        lens_id = self._byte_string_to_lens_id(line)
-        if len(lens_id) > UID_IGNORE_LENGTH:
+        lens_id = ''
+        barcode_reader = 'de2120' in READER_MODEL.lower()
+        if barcode_reader:
+            lens_id = line.replace('https://lens.acmi.net.au/', '')
+        else:
+            lens_id = self._byte_string_to_lens_id(line)
+
+        if len(lens_id) > UID_IGNORE_LENGTH or barcode_reader:
             if lens_id != self.last_id:
                 # send a tap-off message if needed
                 if self.tap_off_timer and self.tap_off_timer.is_alive():
@@ -509,21 +527,185 @@ class TapManager:
 
     def process_taps(self):
         """
-        Read the lines from the C interface and processes taps.
+        Read the lines from the C interface or barcode reader and processes taps.
         """
-        shell = True
-        with subprocess.Popen(CMD, cwd=FOLDER, shell=shell, stdout=subprocess.PIPE) as popen:
-            byte_string_re = r'([0-9a-fA-F]{2}:?)+'
-
+        if 'de2120' in READER_MODEL.lower():  # pylint: disable=too-many-nested-blocks
+            scan_buffer = None
+            self.turn_on_barcode_scanner()
+            reported = False
             while True:
-                # wait for the next line from the C interface
-                # (if there are no NFCs there will be no lines)
-                line = popen.stdout.readline().decode('utf-8')
+                try:
+                    if self.barcode_scanner:
+                        scan_buffer = self.barcode_scanner.read_barcode()
+                        if scan_buffer:
+                            barcode = str(scan_buffer).replace('\r', '').replace('\x06', '')
+                            if barcode:
+                                log(f'Code found: {barcode}')
+                                barcode = self.fix_double_barcode_scan(barcode)
+                                self.read_line(barcode)
+                                scan_buffer = None
+                    sleep(0.02)
+                except (
+                    OSError,
+                    serial.serialutil.SerialException,
+                    UnicodeDecodeError,
+                ) as exception:
+                    log(f'ERROR: {READER_MODEL} reading barcode - {exception}')
+                    if not reported:
+                        sentry_sdk.capture_exception(exception)
+                        reported = True
+        else:
+            log(f'{READER_MODEL} connected...')
+            shell = True
+            with subprocess.Popen(CMD, cwd=FOLDER, shell=shell, stdout=subprocess.PIPE) as popen:
+                byte_string_re = r'([0-9a-fA-F]{2}:?)+'
 
-                # see if it is a tag read
-                if re.match(byte_string_re, line):
-                    # We have an ID.
-                    self.read_line(line)
+                while True:
+                    # wait for the next line from the C interface
+                    # (if there are no NFCs there will be no lines)
+                    line = popen.stdout.readline().decode('utf-8')
+
+                    # see if it is a tag read
+                    if re.match(byte_string_re, line):
+                        # We have an ID.
+                        self.read_line(line)
+
+    def turn_on_barcode_scanner(self):  # pylint: disable=too-many-statements
+        """
+        Turn on the Sparkfun DE2120 barcode scanner.
+        """
+        if 'de2120' in READER_MODEL.lower():
+            try:
+                if not self.barcode_scanner:
+                    self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+                try:
+                    self.barcode_scanner.USB_mode('VIC')
+                    sleep(1.0)
+                except (serial.serialutil.SerialException, TypeError) as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting USB mode with: {exception}')
+                    sleep(1.0)
+                try:
+                    self.barcode_scanner.enable_motion_sense()
+                    sleep(1.0)
+                except (serial.serialutil.SerialException, TypeError) as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting motion mode with: {exception}')
+                    sleep(1.0)
+                try:
+                    self.barcode_scanner.enable_continuous_read(3)
+                    sleep(1.0)
+                except (serial.serialutil.SerialException, TypeError) as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting continuous read: {exception}')
+                    sleep(1.0)
+                try:
+                    self.barcode_scanner.light_on()
+                    sleep(1.0)
+                except (serial.serialutil.SerialException, TypeError) as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting light on: {exception}')
+                    sleep(1.0)
+                try:
+                    self.barcode_scanner.reticle_on()
+                    sleep(1.0)
+                except (serial.serialutil.SerialException, TypeError) as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting scan line on: {exception}')
+                    sleep(1.0)
+                try:
+                    self.barcode_scanner.enable_decode_beep()
+                    sleep(1.0)
+                except (serial.serialutil.SerialException, TypeError) as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting beep on: {exception}')
+                    sleep(1.0)
+                try:
+                    if not self.barcode_scanner.begin():
+                        log(f"ERROR: {READER_MODEL} isn't connected...")
+                        return
+                    log(f'{READER_MODEL} connected...')
+                except (serial.serialutil.SerialException, TypeError) as exception:
+                    log(f"ERROR: {READER_MODEL} failed begin() with: {exception}")
+                    sleep(1)
+
+            except (OSError, serial.serialutil.SerialException) as exception:
+                log(f'ERROR: {READER_MODEL} turning on - {exception}')
+                sentry_sdk.capture_exception(exception)
+
+    def turn_off_barcode_scanner(self):
+        """
+        Turn off the Sparkfun DE2120 barcode scanner.
+        """
+        if 'de2120' in READER_MODEL.lower():
+            try:
+                if not self.barcode_scanner:
+                    self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+                try:
+                    self.barcode_scanner.enable_manual_trigger()
+                    sleep(1.0)
+                except (serial.serialutil.SerialException, TypeError) as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting manual scan mode with: {exception}')
+                    sleep(1.0)
+                try:
+                    self.barcode_scanner.light_off()
+                    sleep(1.0)
+                except (serial.serialutil.SerialException, TypeError) as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting light off: {exception}')
+                    sleep(1.0)
+                try:
+                    self.barcode_scanner.reticle_off()
+                except (serial.serialutil.SerialException, TypeError) as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting scan line off: {exception}')
+                    sleep(1.0)
+                try:
+                    self.barcode_scanner.disable_decode_beep()
+                    sleep(1.0)
+                except (serial.serialutil.SerialException, TypeError) as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting beep on: {exception}')
+                    sleep(1.0)
+
+            except (OSError, serial.serialutil.SerialException) as exception:
+                log(f'ERROR: {READER_MODEL} turning off - {exception}')
+                sentry_sdk.capture_exception(exception)
+
+    def turn_on_barcode_beep(self):
+        """
+        Turn on the Sparkfun DE2120 barcode beep.
+        """
+        if 'de2120' in READER_MODEL.lower():
+            try:
+                if not self.barcode_scanner:
+                    self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+                try:
+                    self.barcode_scanner.enable_decode_beep()
+                except (serial.serialutil.SerialException, TypeError) as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting beep on: {exception}')
+
+            except (OSError, serial.serialutil.SerialException) as exception:
+                log(f'ERROR: {READER_MODEL} turning beep off - {exception}')
+                sentry_sdk.capture_exception(exception)
+
+    def turn_off_barcode_beep(self):
+        """
+        Turn off the Sparkfun DE2120 barcode beep.
+        """
+        if 'de2120' in READER_MODEL.lower():
+            try:
+                if not self.barcode_scanner:
+                    self.barcode_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+                try:
+                    self.barcode_scanner.disable_decode_beep()
+                except (serial.serialutil.SerialException, TypeError) as exception:
+                    log(f'ERROR: {READER_MODEL} failed setting beep off: {exception}')
+
+            except (OSError, serial.serialutil.SerialException) as exception:
+                log(f'ERROR: {READER_MODEL} turning beep off - {exception}')
+                sentry_sdk.capture_exception(exception)
+
+    def fix_double_barcode_scan(self, barcode):
+        """
+        Return a single barcode if the reader scans it twice.
+        """
+        if barcode and len(barcode) % 20 == 0:
+            barcode = barcode[0:20]
+            log(f'Code updated: {barcode}')
+            return barcode
+        return barcode
 
 
 @app.route('/api/taps/', methods=['POST'])
@@ -582,6 +764,7 @@ def toggle_lights():
             # the Lens Reader must have LEDS_CONTROL_OVERRIDE set true to enable
             # the reader to force tap-off, and control the LEDs
             tap_manager.tap_off()
+            tap_manager.turn_on_barcode_beep()
         else:
             # Normal behaviour, don't interrupt a Lens tap/response, so:
             # ensure we are turning off a previous remote toggle
@@ -592,11 +775,13 @@ def toggle_lights():
         if cross_fade > 0.0:
             # block taps and LED events
             tap_manager.leds.blocked_by = 'remote'
+            tap_manager.turn_off_barcode_beep()
         else:
             # reset ready for more taps
             tap_manager.last_id = None
             tap_manager.leds.success_off()
             tap_manager.leds.blocked_by = None
+            tap_manager.turn_on_barcode_beep()
 
         tap_manager.leds.toggle_lights(rgb_value, ramp_time, cross_fade)
         return 'Leds toggled successfully.', 200
@@ -624,7 +809,7 @@ tap_manager = TapManager()  # pylint: disable=invalid-name
 
 def main():
     """Launcher."""
-    print('XOS Lens Reader (KioskIV)')
+    print(f'XOS Lens Reader ({READER_MODEL})')
 
     if ONBOARDING_LEDS_API:
         print('----------------------')

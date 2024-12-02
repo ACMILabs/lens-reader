@@ -11,3 +11,7 @@ adafruit-circuitpython-dotstar
 
 # Pin platform detect to avoid issue #39
 Adafruit-PlatformDetect==1.3.4
+
+# Sparkfun de2120 barcode reader
+de2120-barcode-scanner
+pyserial

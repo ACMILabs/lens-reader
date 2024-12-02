@@ -7,6 +7,8 @@ services:
       dockerfile: development/Dockerfile
     environment:
       - IS_LOCAL_ENV=true
+      # Uncomment this to try the barcode reader in development
+      # - READER_MODEL="SparkFun DE2120"
     hostname: lensreader
     container_name: lensreader
     volumes:

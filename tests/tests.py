@@ -188,6 +188,25 @@ def test_tap_on_doesnt_queue_phone_taps():
     uid = '04:04:A5:2C:F2:2A:5E:80'
     tap_manager.read_line(uid)
     assert tap_manager.queue.qsize() == 1
+    tap_manager.queue.get()
+    assert tap_manager.queue.qsize() == 0
+
+    # barcode scan as a number string
+    src.runner.READER_MODEL = 'Sparkfun DE2120'
+    barcode = '1234567890'
+    tap_manager.read_line(barcode)
+    assert tap_manager.queue.qsize() == 1
+    tap = tap_manager.queue.get()
+    assert tap[1]['lens']['uid'] == barcode
+    assert tap_manager.queue.qsize() == 0
+
+    # barcode scan as a QR code URL string
+    barcode = 'https://lens.acmi.net.au/9876543210'
+    tap_manager.read_line(barcode)
+    assert tap_manager.queue.qsize() == 1
+    tap = tap_manager.queue.get()
+    assert tap[1]['lens']['uid'] == '9876543210'
+    assert tap_manager.queue.qsize() == 0
 
 
 @patch('requests.post', MagicMock(side_effect=mocked_requests_post))
@@ -545,6 +564,7 @@ def test_tap_data_shape():
     # src.utils gets run before we can mock it
     # So run get_ip_address() again to set it here
     src.runner.IP_ADDRESS = get_ip_address()
+    src.runner.READER_MODEL = 'IDTech Kiosk IV'
     lens_uid = 'abcdef123456'
     tap_manager = TapManager()
     tap = tap_manager.create_tap(lens_uid)
@@ -555,6 +575,17 @@ def test_tap_data_shape():
     assert tap['data']['lens_reader']['mac_address']
     assert tap['data']['lens_reader']['reader_ip'] == '10.1.2.3'
     assert tap['data']['lens_reader']['reader_model'] == 'IDTech Kiosk IV'
+
+    src.runner.READER_MODEL = 'Sparkfun DE2120'
+    tap = tap_manager.create_tap(lens_uid)
+    assert tap['lens']['uid'] == lens_uid
+    assert tap['tap_datetime']
+    assert tap['label'] == '1'
+    assert tap['data']['lens_reader']['device_name'] == 'DD-00'
+    assert tap['data']['lens_reader']['mac_address']
+    assert tap['data']['lens_reader']['reader_ip'] == '10.1.2.3'
+    assert tap['data']['lens_reader']['reader_model'] == 'Sparkfun DE2120'
+    src.runner.READER_MODEL = 'IDTech Kiosk IV'
 
 
 @patch('requests.post', MagicMock(side_effect=mocked_requests_post))
@@ -872,3 +903,17 @@ def test_taps_api():
         assert endpoint == src.runner.XOS_TAPS_ENDPOINT
         assert api_key == 'api-key'
         assert src.runner.AUTH_TOKEN == 'another-key'
+
+
+def test_fix_double_barcode_scan():
+    """
+    Test fix_double_barcode_scan returns only the first scan.
+    """
+    single_scan = '99000002055569800262'
+    double_scan = '9900000205556980026299000002055569800262'
+    triple_scan = '990000020555698002629900000205556980026399000002055569800264'
+    tap_manager = TapManager()
+    assert tap_manager.fix_double_barcode_scan('abc') == 'abc'
+    assert tap_manager.fix_double_barcode_scan(single_scan) == single_scan
+    assert tap_manager.fix_double_barcode_scan(double_scan) == single_scan
+    assert tap_manager.fix_double_barcode_scan(triple_scan) == single_scan
