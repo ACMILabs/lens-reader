@@ -9,11 +9,13 @@ The file `runner.py` runs the `idtech` C app in the background, and processes th
 The Python script processes the output and POSTs 'tap' API calls to `TARGET_API_ENDPOINT`, and controls the lights attached to the RPi.
 
 # Features
+
 * Read a nearby NFC tag and post a tap message to a given API endpoint
 * Light up LED strips in nominated colour in response to a tap
 * Light up LED strips in an error colour in case of error
 * Allow LED strips to be controlled via API from an external source
 * Can be configured, deployed and rebooted via Balena
+* Optionally scan a ticket barcode instead of an NFC tag
 
 # Hardware
 
@@ -27,6 +29,16 @@ The Python script processes the output and POSTs 'tap' API calls to `TARGET_API_
 * Ethernet cable
 * DFRobot DHT22 Temperature and Humidity sensor
 * Housing
+
+## Optional barcode reader
+
+* SparkFun DE2120 barcode scanner
+
+To setup the barcode reader, set the environment variable: `READER_MODEL=Sparkfun DE2120`
+
+Then scan this barcode to enable USB mode:
+
+<img src="de2120-usbcom-mode.png">
 
 # Configuration values
 
