@@ -903,3 +903,17 @@ def test_taps_api():
         assert endpoint == src.runner.XOS_TAPS_ENDPOINT
         assert api_key == 'api-key'
         assert src.runner.AUTH_TOKEN == 'another-key'
+
+
+def test_fix_double_barcode_scan():
+    """
+    Test fix_double_barcode_scan returns only the first scan.
+    """
+    single_scan = '99000002055569800262'
+    double_scan = '9900000205556980026299000002055569800262'
+    triple_scan = '990000020555698002629900000205556980026399000002055569800264'
+    tap_manager = TapManager()
+    assert tap_manager.fix_double_barcode_scan('abc') == 'abc'
+    assert tap_manager.fix_double_barcode_scan(single_scan) == single_scan
+    assert tap_manager.fix_double_barcode_scan(double_scan) == single_scan
+    assert tap_manager.fix_double_barcode_scan(triple_scan) == single_scan

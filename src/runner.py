@@ -541,6 +541,7 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                             barcode = str(scan_buffer).replace('\r', '').replace('\x06', '')
                             if barcode:
                                 log(f'Code found: {barcode}')
+                                barcode = self.fix_double_barcode_scan(barcode)
                                 self.read_line(barcode)
                                 scan_buffer = None
                     sleep(0.02)
@@ -695,6 +696,16 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
             except (OSError, serial.serialutil.SerialException) as exception:
                 log(f'ERROR: {READER_MODEL} turning beep off - {exception}')
                 sentry_sdk.capture_exception(exception)
+
+    def fix_double_barcode_scan(self, barcode):
+        """
+        Return a single barcode if the reader scans it twice.
+        """
+        if barcode and len(barcode) % 20 == 0:
+            barcode = barcode[0:20]
+            log(f'Code updated: {barcode}')
+            return barcode
+        return barcode
 
 
 @app.route('/api/taps/', methods=['POST'])
