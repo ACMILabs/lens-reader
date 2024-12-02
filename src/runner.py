@@ -362,12 +362,20 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
         Get the topmost tap from the queue and try to send it.
         If XOS is unreachable, put the tap back in the queue.
         """
-        _, tap, endpoint, api_key = self.queue.get()
-        headers = {'Authorization': 'Token ' + api_key}
+        try:
+            _, tap, endpoint, api_key = self.queue.get()
+            headers = {'Authorization': 'Token ' + api_key}
+        except TypeError as exception:
+            log(f'Failed to get tap from queue: {exception}')
+            if self.post_to_sentry:
+                sentry_sdk.capture_exception(exception)
+                self.post_to_sentry = False
+            log(f'Waiting for {TAP_SEND_RETRY_SECS} seconds to retry')
+            sleep(TAP_SEND_RETRY_SECS)
+            return 1
 
         try:
             response = requests.post(url=endpoint, json=tap, headers=headers, timeout=5)
-            self.post_to_sentry = True
             if response.status_code in TAP_SUCCESS_RESPONSE_CODES:
                 try:
                     data = response.json()
@@ -382,6 +390,7 @@ class TapManager:  # pylint: disable=too-many-instance-attributes
                 if not self.leds.blocked_by and ONBOARDING_LEDS_API:
                     self.leds.success()
                     self.last_id_failed = None
+                self.post_to_sentry = True
                 return 0
 
             if response.status_code in XOS_FAILED_RESPONSE_CODES:
