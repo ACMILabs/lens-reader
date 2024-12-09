@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 import requests
 
 import src.runner
-from src.runner import LEDControllerThread, TapManager, onboarding_authentication_daemon
+from src.runner import (LEDControllerThread, TapManager,
+                        onboarding_authentication_daemon)
 from src.utils import env_to_tuple, get_ip_address
 
 src.runner.TAP_SEND_RETRY_SECS = 0.1
