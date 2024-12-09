@@ -89,6 +89,7 @@ app = Flask(__name__)  # pylint: disable=invalid-name
 
 onboarding_authentication_token = ''
 onboarding_authentication_expiry_time = 0
+do_sentry_exception = True
 
 
 def onboarding_authentication_daemon():
@@ -96,66 +97,69 @@ def onboarding_authentication_daemon():
     If ONBOARDING_LEDS_TOKEN_API is set, start a daemon to update
     authentication token before it expires
     """
+    if ONBOARDING_LEDS_TOKEN_API:
+        while True:
+            update_onboarding_authentication()
+            sleep(30)
+
+
+def update_onboarding_authentication():
     global onboarding_authentication_token  # pylint: disable=global-statement
     global onboarding_authentication_expiry_time  # pylint: disable=global-statement
-    if ONBOARDING_LEDS_TOKEN_API:
-        do_sentry_exception = True
-        while True:
-            now = time()
-            time_till_expiry = onboarding_authentication_expiry_time - now
+    global do_sentry_exception  # pylint: disable=global-statement
+    now = time()
+    time_till_expiry = onboarding_authentication_expiry_time - now
 
-            # less then 45 seconds to expiry
-            if time_till_expiry < 45:
-                authentication_creds = {
-                    "user": ONBOARDING_LEDS_USERNAME,
-                    "password": ONBOARDING_LEDS_PASSWORD
-                }
-                try:
-                    response = requests.post(
-                        url=ONBOARDING_LEDS_TOKEN_API,
-                        json=authentication_creds,
-                        timeout=5,
-                    )
-                    response.raise_for_status()
-                    log(
-                        f'Requested new token'
-                        f'response: {response.status_code}'
-                    )
-                    authentication_information = response.json()
-                    expires_in = authentication_information['expires_in']
-                    access_token = authentication_information['access_token']
-                    onboarding_authentication_expiry_time = time() + expires_in
-                    onboarding_authentication_token = access_token
-                except (
-                    requests.exceptions.ConnectionError,
-                    requests.exceptions.Timeout
-                ) as connection_error:
-                    log(
-                        f'Failed to get authenticationToken from {ONBOARDING_LEDS_TOKEN_API}\n'
-                        f'{str(connection_error)}'
-                    )
-                    if do_sentry_exception:
-                        sentry_sdk.capture_exception(connection_error)
-                        do_sentry_exception = False
-                except requests.HTTPError as exception:
-                    log(
-                        f'Failed to get authenticationToken from {ONBOARDING_LEDS_TOKEN_API}\n'
-                        f'{str(exception)}'
-                    )
-                    if do_sentry_exception:
-                        sentry_sdk.capture_exception(exception)
-                        do_sentry_exception = False
+    # less then 45 seconds to expiry
+    if time_till_expiry < 45:
+        authentication_creds = {
+            "user": ONBOARDING_LEDS_USERNAME,
+            "password": ONBOARDING_LEDS_PASSWORD
+        }
+        try:
+            response = requests.post(
+                url=ONBOARDING_LEDS_TOKEN_API,
+                json=authentication_creds,
+                timeout=5,
+            )
+            response.raise_for_status()
+            log(
+                f'Requested new token'
+                f'response: {response.status_code}'
+            )
+            authentication_information = response.json()
+            expires_in = authentication_information['expires_in']
+            access_token = authentication_information['access_token']
+            onboarding_authentication_expiry_time = time() + expires_in
+            onboarding_authentication_token = access_token
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout
+        ) as connection_error:
+            log(
+                f'Failed to get authenticationToken from {ONBOARDING_LEDS_TOKEN_API}\n'
+                f'{str(connection_error)}'
+            )
+            if do_sentry_exception:
+                sentry_sdk.capture_exception(connection_error)
+                do_sentry_exception = False
+        except requests.HTTPError as exception:
+            log(
+                f'Failed to get authenticationToken from {ONBOARDING_LEDS_TOKEN_API}\n'
+                f'{str(exception)}'
+            )
+            if do_sentry_exception:
+                sentry_sdk.capture_exception(exception)
+                do_sentry_exception = False
 
-                except KeyError as exception:
-                    log(
-                        f'Failed to get authenticationToken from {ONBOARDING_LEDS_TOKEN_API}\n'
-                        f'{str(exception)}'
-                    )
-                    if do_sentry_exception:
-                        sentry_sdk.capture_exception(exception)
-                        do_sentry_exception = False
-
-            sleep(30)
+        except KeyError as exception:
+            log(
+                f'Failed to get authenticationToken from {ONBOARDING_LEDS_TOKEN_API}\n'
+                f'{str(exception)}'
+            )
+            if do_sentry_exception:
+                sentry_sdk.capture_exception(exception)
+                do_sentry_exception = False
 
 
 class LEDControllerThread(Thread):

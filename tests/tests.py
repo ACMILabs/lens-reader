@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import requests
 
 import src.runner
-from src.runner import LEDControllerThread, TapManager
+from src.runner import LEDControllerThread, TapManager, onboarding_authentication_daemon
 from src.utils import env_to_tuple, get_ip_address
 
 src.runner.TAP_SEND_RETRY_SECS = 0.1
@@ -16,6 +16,7 @@ class MethodWrapper():
     """
     Used to add call_count to a patched method so we can test how many times a method is called.
     """
+
     def __init__(self, func):
         self.call_count = 0
         self.func = func
@@ -917,3 +918,53 @@ def test_fix_double_barcode_scan():
     assert tap_manager.fix_double_barcode_scan(single_scan) == single_scan
     assert tap_manager.fix_double_barcode_scan(double_scan) == single_scan
     assert tap_manager.fix_double_barcode_scan(triple_scan) == single_scan
+
+
+@patch('requests.post')
+@patch('src.runner.time')
+def test_authentication_success(mock_time, token_post):
+    """
+    Test that the onboarding lights POST request is sent as expected,
+    and errors are handled successfully.
+    """
+
+    class MockResponse:
+        def __init__(self):
+            self.status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                'expires_in': 300,
+                'access_token': 'testToken'
+            }
+
+    token_post.return_value = MockResponse()
+    mock_time.return_value = 1
+    src.runner.ONBOARDING_LEDS_API = 'https://xos.acmi.net.au/api/fake'
+    src.runner.ONBOARDING_LEDS_DATA_SUCCESS = '{}'
+    src.runner.ONBOARDING_LEDS_TOKEN_API = 'http://test'
+    src.runner.ONBOARDING_LEDS_USERNAME = 'test_user'
+    src.runner.ONBOARDING_LEDS_PASSWORD = 'test_password'
+    src.runner.update_onboarding_authentication()
+    token_post.assert_called_with(
+        url='http://test', json={'user': 'test_user', 'password': 'test_password'}, timeout=5)
+    assert src.runner.onboarding_authentication_token == 'testToken'
+    assert src.runner.onboarding_authentication_expiry_time == 301
+    src.runner.ONBOARDING_LEDS_TOKEN_API = None
+    src.runner.ONBOARDING_LEDS_USERNAME = ''
+    src.runner.ONBOARDING_LEDS_PASSWORD = ''
+    src.runner.ONBOARDING_LEDS_API = None
+
+
+@patch('src.runner.update_onboarding_authentication', side_effect=MagicMock())
+def test_authentication_missing(onbording_auth):
+    """
+    Test that the onboarding lights POST request is sent as expected,
+    and errors are handled successfully.
+    """
+    src.runner.ONBOARDING_LEDS_TOKEN_API = None
+    onboarding_authentication_daemon()
+    assert onbording_auth.call_count == 0
