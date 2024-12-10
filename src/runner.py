@@ -104,6 +104,9 @@ def onboarding_authentication_daemon():
 
 
 def update_onboarding_authentication():
+    """
+    Update onbording lens token if it is about to expire
+    """
     global onboarding_authentication_token  # pylint: disable=global-statement
     global onboarding_authentication_expiry_time  # pylint: disable=global-statement
     global do_sentry_exception  # pylint: disable=global-statement
