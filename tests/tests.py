@@ -6,8 +6,7 @@ from unittest.mock import MagicMock, patch
 import requests
 
 import src.runner
-from src.runner import (LEDControllerThread, TapManager,
-                        onboarding_authentication_daemon)
+from src.runner import LEDControllerThread, TapManager
 from src.utils import env_to_tuple, get_ip_address
 
 src.runner.TAP_SEND_RETRY_SECS = 0.1
@@ -941,31 +940,31 @@ def test_authentication_success(mock_time, token_post):
                 'expires_in': 300,
                 'access_token': 'testToken'
             }
-
+    controller = LEDControllerThread()
     token_post.return_value = MockResponse()
     mock_time.return_value = 1
     src.runner.ONBOARDING_LEDS_API = 'https://xos.acmi.net.au/api/fake'
     src.runner.ONBOARDING_LEDS_DATA_SUCCESS = '{}'
-    src.runner.ONBOARDING_LEDS_TOKEN_API = 'http://test'
+    src.runner.ONBOARDING_LEDS_API = 'http://test/'
     src.runner.ONBOARDING_LEDS_USERNAME = 'test_user'
     src.runner.ONBOARDING_LEDS_PASSWORD = 'test_password'
-    src.runner.update_onboarding_authentication()
+    controller.update_onboarding_authentication()
     token_post.assert_called_with(
-        url='http://test', json={'user': 'test_user', 'password': 'test_password'}, timeout=5)
-    assert src.runner.onboarding_authentication_token == 'testToken'
-    assert src.runner.onboarding_authentication_expiry_time == 301
-    src.runner.ONBOARDING_LEDS_TOKEN_API = None
+        url='http://test/token', json={'user': 'test_user', 'password': 'test_password'}, timeout=5)
+    assert controller.onboarding_authentication_token == 'testToken'
+    assert controller.onboarding_authentication_expiry_time == 301
+    src.runner.ONBOARDING_LEDS_API = None
     src.runner.ONBOARDING_LEDS_USERNAME = ''
     src.runner.ONBOARDING_LEDS_PASSWORD = ''
     src.runner.ONBOARDING_LEDS_API = None
 
 
-@patch('src.runner.update_onboarding_authentication', side_effect=MagicMock())
+@patch('src.runner.LEDControllerThread.update_onboarding_authentication', side_effect=MagicMock())
 def test_authentication_missing(onbording_auth):
     """
-    Test that the onboarding lights POST request is sent as expected,
-    and errors are handled successfully.
+    Test that the onboarding lights token POST request is ignored when no api is set.
     """
-    src.runner.ONBOARDING_LEDS_TOKEN_API = None
-    onboarding_authentication_daemon()
+    src.runner.ONBOARDING_LEDS_API = None
+    controller = LEDControllerThread()
+    controller.onboarding_authentication_daemon()
     assert onbording_auth.call_count == 0

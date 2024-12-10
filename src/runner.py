@@ -64,7 +64,6 @@ XOS_FAILED_RESPONSE_CODES = [400, 404]  # 400 Lens UID not found in XOS
 TAP_SUCCESS_RESPONSE_CODES = [200, 201]  # 200 Maker Moments, 201 XOS
 
 ONBOARDING_LEDS_API = os.getenv('ONBOARDING_LEDS_API')
-ONBOARDING_LEDS_TOKEN_API = os.getenv('ONBOARDING_LEDS_TOKEN_API')
 ONBOARDING_LEDS_DATA_SUCCESS = os.getenv('ONBOARDING_LEDS_DATA_SUCCESS')
 ONBOARDING_LEDS_DATA_FAILED = os.getenv('ONBOARDING_LEDS_DATA_FAILED')
 ONBOARDING_LEDS_USERNAME = os.getenv('ONBOARDING_LEDS_USERNAME', '')
@@ -86,83 +85,6 @@ else:
 sentry_sdk.init(SENTRY_ID)
 
 app = Flask(__name__)  # pylint: disable=invalid-name
-
-onboarding_authentication_token = ''
-onboarding_authentication_expiry_time = 0
-do_sentry_exception = True
-
-
-def onboarding_authentication_daemon():
-    """
-    If ONBOARDING_LEDS_TOKEN_API is set, start a daemon to update
-    authentication token before it expires
-    """
-    if ONBOARDING_LEDS_TOKEN_API:
-        while True:
-            update_onboarding_authentication()
-            sleep(30)
-
-
-def update_onboarding_authentication():
-    """
-    Update onbording lens token if it is about to expire
-    """
-    global onboarding_authentication_token  # pylint: disable=global-statement
-    global onboarding_authentication_expiry_time  # pylint: disable=global-statement
-    global do_sentry_exception  # pylint: disable=global-statement
-    now = time()
-    time_till_expiry = onboarding_authentication_expiry_time - now
-
-    # less then 45 seconds to expiry
-    if time_till_expiry < 45:
-        authentication_creds = {
-            "user": ONBOARDING_LEDS_USERNAME,
-            "password": ONBOARDING_LEDS_PASSWORD
-        }
-        try:
-            response = requests.post(
-                url=ONBOARDING_LEDS_TOKEN_API,
-                json=authentication_creds,
-                timeout=5,
-            )
-            response.raise_for_status()
-            log(
-                f'Requested new token'
-                f'response: {response.status_code}'
-            )
-            authentication_information = response.json()
-            expires_in = authentication_information['expires_in']
-            access_token = authentication_information['access_token']
-            onboarding_authentication_expiry_time = time() + expires_in
-            onboarding_authentication_token = access_token
-        except (
-            requests.exceptions.ConnectionError,
-            requests.exceptions.Timeout
-        ) as connection_error:
-            log(
-                f'Failed to get authenticationToken from {ONBOARDING_LEDS_TOKEN_API}\n'
-                f'{str(connection_error)}'
-            )
-            if do_sentry_exception:
-                sentry_sdk.capture_exception(connection_error)
-                do_sentry_exception = False
-        except requests.HTTPError as exception:
-            log(
-                f'Failed to get authenticationToken from {ONBOARDING_LEDS_TOKEN_API}\n'
-                f'{str(exception)}'
-            )
-            if do_sentry_exception:
-                sentry_sdk.capture_exception(exception)
-                do_sentry_exception = False
-
-        except KeyError as exception:
-            log(
-                f'Failed to get authenticationToken from {ONBOARDING_LEDS_TOKEN_API}\n'
-                f'{str(exception)}'
-            )
-            if do_sentry_exception:
-                sentry_sdk.capture_exception(exception)
-                do_sentry_exception = False
 
 
 class LEDControllerThread(Thread):
@@ -188,6 +110,10 @@ class LEDControllerThread(Thread):
         self.ramp_duration = None
         self.ramp_time0 = None
         self.blocked_by = None
+
+        self.onboarding_authentication_token = ''
+        self.onboarding_authentication_expiry_time = 0
+        self.send_onboarding_leds_sentry_exception = True
 
         if not IS_LOCAL_ENV:
             self.leds = dotstar.DotStar(
@@ -365,16 +291,16 @@ class LEDControllerThread(Thread):
             try:
                 data = json.loads(data)
                 response = requests.post(
-                    url=ONBOARDING_LEDS_API,
+                    url=f'{ONBOARDING_LEDS_API}api/trigger',
                     json=data,
                     timeout=5,
                     headers={
-                        "Authorization": f"Bearer {onboarding_authentication_token}"
+                        "Authorization": f"Bearer {self.onboarding_authentication_token}"
                     }
                 )
                 response.raise_for_status()
                 log(
-                    f'Sent onboarding LED request {ONBOARDING_LEDS_API} {data}, '
+                    f'Sent onboarding LED request {ONBOARDING_LEDS_API}/api/trigger {data}, '
                     f'response: {response.status_code}'
                 )
             except json.decoder.JSONDecodeError as exception:
@@ -385,16 +311,66 @@ class LEDControllerThread(Thread):
                 requests.exceptions.Timeout
             ) as connection_error:
                 log(
-                    f'Failed to post onboarding lights to {ONBOARDING_LEDS_API}: {data}\n'
+                    f'Failed to post onboarding lights to {ONBOARDING_LEDS_API}/api/'
+                    f'trigger: {data}\n'
                     f'{str(connection_error)}'
                 )
                 sentry_sdk.capture_exception(connection_error)
             except requests.HTTPError as exception:
                 log(
-                    f'Failed to trigger onboarding lights {ONBOARDING_LEDS_API} '
+                    f'Failed to trigger onboarding lights {ONBOARDING_LEDS_API}/api/trigger '
                     f'with error {str(exception)}'
                 )
                 sentry_sdk.capture_exception(exception)
+
+    def onboarding_authentication_daemon(self):
+        """
+        If ONBOARDING_LEDS_TOKEN_API is set, start a daemon to update
+        authentication token before it expires
+        """
+        if ONBOARDING_LEDS_API:
+            while True:
+                self.update_onboarding_authentication()
+                sleep(30)
+
+    def update_onboarding_authentication(self):
+        """
+        Update onbording lens token if it is about to expire
+        """
+        now = time()
+        time_till_expiry = self.onboarding_authentication_expiry_time - now
+
+        # less then 45 seconds to expiry
+        if time_till_expiry < 45:
+            authentication_creds = {
+                "user": ONBOARDING_LEDS_USERNAME,
+                "password": ONBOARDING_LEDS_PASSWORD
+            }
+            try:
+                response = requests.post(
+                    url=f'{ONBOARDING_LEDS_API}token',
+                    json=authentication_creds,
+                    timeout=5,
+                )
+                response.raise_for_status()
+                authentication_information = response.json()
+                expires_in = authentication_information['expires_in']
+                access_token = authentication_information['access_token']
+                self.onboarding_authentication_expiry_time = time() + expires_in
+                self.onboarding_authentication_token = access_token
+            except (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout,
+                requests.HTTPError,
+                KeyError
+            ) as connection_error:
+                log(
+                    f'Failed to get authenticationToken from {ONBOARDING_LEDS_API}token\n'
+                    f'{str(connection_error)}'
+                )
+                if self.send_onboarding_leds_sentry_exception:
+                    sentry_sdk.capture_exception(connection_error)
+                    self.send_onboarding_leds_sentry_exception = False
 
 
 class TapManager:  # pylint: disable=too-many-instance-attributes
@@ -896,7 +872,6 @@ def main():
     if ONBOARDING_LEDS_API:
         print('----------------------')
         print(f'Onboarding LEDs API: {ONBOARDING_LEDS_API}')
-        print(f'Onboarding LEDs Token API: {ONBOARDING_LEDS_TOKEN_API}')
         print(f'Onboarding LEDs Data Success: {ONBOARDING_LEDS_DATA_SUCCESS}')
         print(f'Onboarding LEDs Data Failed: {ONBOARDING_LEDS_DATA_FAILED}')
         print('----------------------')
@@ -913,7 +888,7 @@ def main():
     Thread(target=tap_manager.process_taps).start()
 
     # Start thread to update authentication
-    Thread(target=onboarding_authentication_daemon).start()
+    Thread(target=tap_manager.leds.onboarding_authentication_daemon).start()
 
     # Start thread to send taps.
     Thread(target=tap_manager.send_taps).start()
