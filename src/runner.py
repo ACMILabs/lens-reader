@@ -295,12 +295,12 @@ class LEDControllerThread(Thread):
                     json=data,
                     timeout=5,
                     headers={
-                        "Authorization": f"Bearer {self.onboarding_authentication_token}"
+                        'Authorization': f'Bearer {self.onboarding_authentication_token}'
                     }
                 )
                 response.raise_for_status()
                 log(
-                    f'Sent onboarding LED request {ONBOARDING_LEDS_API}/api/trigger {data}, '
+                    f'Sent onboarding LED request {ONBOARDING_LEDS_API}api/trigger {data}, '
                     f'response: {response.status_code}'
                 )
             except json.decoder.JSONDecodeError as exception:
@@ -311,14 +311,15 @@ class LEDControllerThread(Thread):
                 requests.exceptions.Timeout
             ) as connection_error:
                 log(
-                    f'Failed to post onboarding lights to {ONBOARDING_LEDS_API}/api/'
-                    f'trigger: {data}\n'
+                    f'Failed to post onboarding lights to '
+                    f'{ONBOARDING_LEDS_API}api/trigger: {data}\n'
                     f'{str(connection_error)}'
                 )
                 sentry_sdk.capture_exception(connection_error)
             except requests.HTTPError as exception:
                 log(
-                    f'Failed to trigger onboarding lights {ONBOARDING_LEDS_API}/api/trigger '
+                    f'Failed to trigger onboarding lights '
+                    f'{ONBOARDING_LEDS_API}api/trigger '
                     f'with error {str(exception)}'
                 )
                 sentry_sdk.capture_exception(exception)
